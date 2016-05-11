@@ -1893,6 +1893,7 @@ void call_destroy(struct call *c) {
 	rwlock_lock_w(&c->master_lock);
 	/* at this point, no more packet streams can be added */
 
+	if (!IS_FOREIGN_CALL(c)) {
 	ilog(LOG_INFO, "Final packet stats:");
 
 	/* CDRs and statistics */
@@ -2095,6 +2096,7 @@ void call_destroy(struct call *c) {
 		}
 		if (_log_facility_cdr)
 		    ++cdrlinecnt;
+	}
 	}
 
 	// --- for statistics getting one way stream or no relay at all

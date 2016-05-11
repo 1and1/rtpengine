@@ -582,7 +582,7 @@ static void release_port(socket_t *r, struct intf_spec *spec) {
 		bit_array_clear(spec->port_pool.ports_used, port);
 		g_atomic_int_inc(&spec->port_pool.free_ports);
 	} else {
-		__C_DBG("port %u is NOT released", port);
+		ilog(LOG_ERR, "port %u is NOT released", port);
 	}
 }
 static void free_port(socket_t *r, struct intf_spec *spec) {
