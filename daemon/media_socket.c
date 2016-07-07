@@ -1435,7 +1435,7 @@ out:
 	ca = sfd->call ? : NULL;
 
 	if (ca && update)
-		redis_update(ca, ca->callmaster->conf.redis_write);
+		redis_update_if_allowed(ca, ca->callmaster->conf.redis_write);
 done:
 	log_info_clear();
 }

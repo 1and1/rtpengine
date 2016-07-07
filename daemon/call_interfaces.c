@@ -1,6 +1,4 @@
 #include "call_interfaces.h"
-
-#include <stdio.h>
 #include <unistd.h>
 #include <glib.h>
 #include <stdlib.h>
@@ -185,7 +183,7 @@ static str *call_update_lookup_udp(char **out, struct callmaster *m, enum call_o
 			sp.index, sp.index, out[RE_UDP_COOKIE], SAF_UDP);
 	rwlock_unlock_w(&c->master_lock);
 
-	redis_update(c, m->conf.redis_write);
+	redis_update_if_allowed(c, m->conf.redis_write);
 
 	gettimeofday(&(monologue->started), NULL);
 
@@ -333,7 +331,7 @@ out2:
 	rwlock_unlock_w(&c->master_lock);
 	streams_free(&s);
 
-	redis_update(c, m->conf.redis_write);
+	redis_update_if_allowed(c, m->conf.redis_write);
 
 	ilog(LOG_INFO, "Returning to SIP proxy: "STR_FORMAT"", STR_FMT0(ret));
 	obj_put(c);
@@ -652,7 +650,7 @@ static const char *call_offer_answer_ng(bencode_item_t *input, struct callmaster
 	GQueue streams = G_QUEUE_INIT;
 	struct call *call;
 	struct call_monologue *monologue;
-	int ret;
+	int ret, timedout_response = 0;
 	struct sdp_ng_flags flags;
 	struct sdp_chopper *chopper;
 
@@ -680,11 +678,30 @@ static const char *call_offer_answer_ng(bencode_item_t *input, struct callmaster
 	if (sdp_streams(&parsed, &streams, &flags))
 		goto out;
 
+	/**
+	 * To deal with the scenario when a previous response to an offer/answer meant
+	 * for another rtpengine (rtp1) timed out until it got to kamailio. Kamailio resends
+	 * the offer to the current rtpengine (rtp2). Because of redis persistance, rtp2 sees
+	 * the call from when rtp1 partially created it. rtp2 needs to recognise this situation,
+	 * destroy the call in memory, make own call which will not be persisted in the db
+	 */
+	if (opmode == OP_OFFER) {
+		call = call_get(&callid, m);
+		if (call && IS_FOREIGN_CALL(call)) {
+			rwlock_unlock_w(&call->master_lock);
+			call_destroy(call);
+			obj_put(call);
+			timedout_response = 1;
+		}
+	}
 	call = call_get_opmode(&callid, m, opmode);
 
 	errstr = "Unknown call-id";
 	if (!call)
 		goto out;
+
+	if (timedout_response)
+		call->nopersistance = 1;
 
 	if (!call->created_from && addr) {
 		call->created_from = call_strdup(call, addr);
@@ -721,7 +738,7 @@ static const char *call_offer_answer_ng(bencode_item_t *input, struct callmaster
 		ret = sdp_replace(chopper, &parsed, monologue->active_dialogue, &flags);
 
 	rwlock_unlock_w(&call->master_lock);
-	redis_update(call, m->conf.redis_write);
+	redis_update_if_allowed(call, m->conf.redis_write);
 	obj_put(call);
 
 	gettimeofday(&(monologue->started), NULL);

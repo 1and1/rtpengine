@@ -107,7 +107,7 @@ void redis_notify_loop(void *d);
 
 struct redis *redis_new(const endpoint_t *, int, const char *, enum redis_role, int no_redis_required);
 int redis_restore(struct callmaster *, struct redis *);
-void redis_update(struct call *, struct redis *);
+void redis_update_if_allowed(struct call *, struct redis *);
 void redis_delete(struct call *, struct redis *);
 void redis_wipe(struct redis *);
 int redis_notify_event_base_action(struct callmaster *cm, enum event_base_action);

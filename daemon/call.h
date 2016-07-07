@@ -106,6 +106,8 @@ enum call_type {
 #endif
 
 #define IS_FOREIGN_CALL(c) (c->foreign_call)
+#define PERSISTANCE_NOT_ALLOWED(c) (c->nopersistance)
+#define PERSISTANCE_ALLOWED(c) (! c->nopersistance)
 
 /* flags shared by several of the structs below */
 #define SHARED_FLAG_IMPLICIT_RTCP		0x00000001
@@ -432,6 +434,7 @@ struct call {
 
 	unsigned int		redis_hosted_db;
 	unsigned int		foreign_call; // created_via_redis_notify call
+	unsigned char 	nopersistance;
 
 	int			record_call;
 	struct recording 	*recording;

@@ -580,7 +580,7 @@ static void callmaster_timer(void *ptr) {
 		rwlock_unlock_r(&sfd->call->master_lock);
 
 		if (update)
-			redis_update(ps->call, m->conf.redis_write);
+			redis_update_if_allowed(ps->call, m->conf.redis_write);
 
 next:
 		g_hash_table_remove(hlp.addr_sfd, &ep);
@@ -2788,9 +2788,9 @@ static void calls_dump_iterator(void *key, void *val, void *ptr) {
 	struct callmaster *m = c->callmaster;
 
 	if (m->conf.redis_write) {
-		redis_update(c, m->conf.redis_write);
+		redis_update_if_allowed(c, m->conf.redis_write);
 	} else if (m->conf.redis) {
-		redis_update(c, m->conf.redis);
+		redis_update_if_allowed(c, m->conf.redis);
 	}
 }
 

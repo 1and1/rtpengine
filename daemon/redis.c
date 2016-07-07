@@ -336,7 +336,11 @@ void onRedisNotification(redisAsyncContext *actx, void *reply, void *privdata) {
 			goto err;
 		}
 
-		call_destroy(c);
+		/* Timedout kamailio offer/answer responses scenarios might trigger the same call to have 2 owners:
+		 * the rtpengine with the timedout response and the rtpengine that kamailio failedover to
+		 * Only the incomplete call is persisted in memory */
+		if (IS_FOREIGN_CALL(c))
+			call_destroy(c);
 	}
 
 err:
@@ -1652,7 +1656,7 @@ static void redis_update_dtls_fingerprint(struct redis *r, const char *pref, con
  */
 
 /* must be called lock-free */
-void redis_update(struct call *c, struct redis *r) {
+void redis_update_if_allowed(struct call *c, struct redis *r) {
 	GList *l, *n, *k, *m;
 	struct call_monologue *ml, *ml2;
 
@@ -1663,7 +1667,7 @@ void redis_update(struct call *c, struct redis *r) {
 	struct endpoint_map *ep;
 	struct rtp_payload_type *pt;
 
-	if (!r)
+	if (!r || PERSISTANCE_NOT_ALLOWED(c))
 		return;
 
 	mutex_lock(&r->lock);
