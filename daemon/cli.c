@@ -313,7 +313,7 @@ static void cli_incoming_list_callid(char* buffer, int len, struct callmaster* m
                local_addr = ps->selected_sfd ? sockaddr_print_buf(&ps->selected_sfd->socket.local.address) : "0.0.0.0";
 #if (RE_HAS_MEASUREDELAY)
                if (!PS_ISSET(ps, RTP) && PS_ISSET(ps, RTCP)) {
-            	   printlen = snprintf(replybuffer,(outbufend-replybuffer), "------ Media #%u, %15s:%-5hu <> %15s:%-5hu%s, "
+		   printlen = snprintf(replybuffer,(outbufend-replybuffer), "------ Media #%u, %15s:%-5hu <> %15s:%-5hu%s, "
             			   ""UINT64F" p, "UINT64F" b, "UINT64F" e, "UINT64F" last_packet\n",
 						   md->index,
 						   local_addr, (unsigned int) (ps->sfd ? ps->sfd->fd.localport : 0),
@@ -324,7 +324,7 @@ static void cli_incoming_list_callid(char* buffer, int len, struct callmaster* m
 								   atomic64_get(&ps->stats.errors),
 								   atomic64_get(&ps->last_packet));
                } else {
-            	   printlen = snprintf(replybuffer,(outbufend-replybuffer), "------ Media #%u, %15s:%-5hu <> %15s:%-5hu%s, "
+		   printlen = snprintf(replybuffer,(outbufend-replybuffer), "------ Media #%u, %15s:%-5hu <> %15s:%-5hu%s, "
 			   ""UINT64F" p, "UINT64F" b, "UINT64F" e, "UINT64F" last_packet, %.9f delay_min, %.9f delay_avg, %.9f delay_max\n",
 						   md->index,
 						   local_addr, (unsigned int) (ps->sfd ? ps->sfd->fd.localport : 0),
@@ -339,7 +339,7 @@ static void cli_incoming_list_callid(char* buffer, int len, struct callmaster* m
 								   (double) ps->stats.delay_max / 1000000);
                }
 #else
-               printlen = snprintf(replybuffer,(outbufend-replybuffer), "------ Media #%u, %15s:%-5hu <> %15s:%-5u%s, "
+               printlen = snprintf(replybuffer,(outbufend-replybuffer), "------ Media #%u, %15s:%-5u <> %15s:%-5u%s, "
                     ""UINT64F" p, "UINT64F" b, "UINT64F" e, "UINT64F" last_packet\n",
                     md->index,
                     local_addr, (unsigned int) (ps->selected_sfd ? ps->selected_sfd->socket.local.port : 0),

@@ -2076,8 +2076,8 @@ void call_destroy(struct call *c) {
 					    }
 					}
 	
-					ilog(LOG_INFO, "--------- Port %5u <> %15s:%-5u%s, "
-							""UINT64F" p, "UINT64F" b, "UINT64F" e, "UINT64F" last_packet",
+					ilog(LOG_INFO, "--------- Port %15s:%-5u <> %15s:%-5u%s, "
+							""UINT64F" p, "UINT64F" b, "UINT64F" e, "UINT64F" last_packet", local_addr,
 							(unsigned int) (ps->selected_sfd ? ps->selected_sfd->socket.local.port : 0),
 							addr, ps->endpoint.port,
 							(!PS_ISSET(ps, RTP) && PS_ISSET(ps, RTCP)) ? " (RTCP)" : "",
