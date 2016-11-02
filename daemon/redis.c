@@ -1917,6 +1917,8 @@ void redis_update(struct call *c, struct redis *r) {
 
 			for (n = il->list.head; n; n = n->next) {
 				sfd = n->data;
+				if (!sfd)
+				    goto sfd_err;
 
 				redis_pipe(r, "RPUSH map_sfds-"PB"-%u %u",
 					STR(&c->callid), ep->unique_id,
@@ -1952,6 +1954,27 @@ err:
 		rlog(LOG_ERR, "Redis error: %s", r->ctx->errstr);
 	redisFree(r->ctx);
 	r->ctx = NULL;
+	return;
+
+sfd_err:
+
+    redis_pipe(r, "DEL call-"PB"", STR(&c->callid));
+    redis_delete_list(r, &c->callid, "sfd", &c->stream_fds);
+    redis_delete_list(r, &c->callid, "stream", &c->streams);
+    redis_delete_list(r, &c->callid, "stream_sfds", &c->streams);
+    redis_delete_list(r, &c->callid, "tag", &c->monologues);
+    redis_delete_list(r, &c->callid, "other_tags", &c->monologues);
+    redis_delete_list(r, &c->callid, "medias", &c->monologues);
+    redis_delete_list(r, &c->callid, "media", &c->medias);
+    redis_delete_list(r, &c->callid, "streams", &c->medias);
+    redis_delete_list(r, &c->callid, "maps", &c->medias);
+    redis_delete_list(r, &c->callid, "payload_types", &c->medias);
+    redis_delete_list(r, &c->callid, "map", &c->endpoint_maps);
+    redis_delete_list(r, &c->callid, "map_sfds", &c->endpoint_maps);
+    redis_consume(r);
+
+    mutex_unlock(&r->lock);
+    rwlock_unlock_r(&c->master_lock);
 }
 
 /* must be called lock-free */
