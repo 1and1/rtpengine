@@ -22,10 +22,9 @@
 #include "hiredis/adapters/libevent.h"
 #include "event2/thread.h"
 
-
-
-
-
+#include <stdlib.h>
+#include <glib-object.h>
+#include <json-glib/json-glib.h>
 
 INLINE redisReply *redis_expect(int type, redisReply *r) {
 	if (!r)
@@ -59,6 +58,8 @@ static int redisCommandNR(redisContext *r, const char *fmt, ...)
 #define STR(x) (x)->s, (size_t) (x)->len
 #define STR_R(x) (x)->str, (size_t) (x)->len
 #define S_LEN(s,l) (s), (size_t) (l)
+
+#define PRFX "cid-"
 
 #endif
 
@@ -1645,8 +1646,212 @@ static void redis_update_dtls_fingerprint(struct redis *r, const char *pref, con
 		f->hash_func->name,
 		S_LEN(f->digest, sizeof(f->digest)));
 }
+/**
+ * JSON will look like
+ *
+ * { "cid-<callid>" :
+ *   {
+ *   	"globaldata" :
+ *   	{
+ *   		created : "...",
+ *   		last_signal : "..."
+ *   		...
+ *   	},
+ *   	"sfd-<callid>-<uniqueid>" :
+ *   	{
+ *   		"pref_family" : "...",
+ *   		"localport" : "...",
+ *   		"logical_intf" : "...",
+ *   		...
+ *   	}
+ *
+ *   }
+ *
+ */
+void redis_encode_json(struct call *c) {
+
+	GList *l=0;
+	struct stream_fd *sfd;
+	JsonBuilder *builder = json_builder_new ();
+
+	json_builder_begin_object (builder);
+
+	char tmp[2048]; ZERO(tmp);
+	snprintf(tmp,"call-"PB,STR(&c->callid));
+	json_builder_set_member_name (builder, tmp);
+	ZERO(tmp);
+
+	json_builder_begin_object (builder);
+
+	json_builder_set_member_name (builder, "globaldata");
+
+	json_builder_begin_object (builder);
+
+	json_builder_set_member_name (builder, "created");
+	snprintf(tmp,"%llu",(long long unsigned) c->created);
+	json_builder_add_string_value (builder, tmp);
+	ZERO(tmp);
+	json_builder_set_member_name (builder, "last_signal");
+	snprintf(tmp,"%llu",(long long unsigned) c->last_signal);
+	json_builder_add_string_value (builder, tmp);
+	ZERO(tmp);
+	json_builder_set_member_name (builder, "tos");
+	snprintf(tmp,"%i",(int) c->tos);
+	json_builder_add_string_value (builder, tmp);
+	ZERO(tmp);
+	json_builder_set_member_name (builder, "deleted");
+	snprintf(tmp,"%llu",(long long unsigned) c->deleted);
+	json_builder_add_string_value (builder, tmp);
+	ZERO(tmp);
+	json_builder_set_member_name (builder, "num_sfds");
+	snprintf(tmp,"%u",g_queue_get_length(&c->stream_fds));
+	json_builder_add_string_value (builder, tmp);
+	ZERO(tmp);
+	json_builder_set_member_name (builder, "num_streams");
+	snprintf(tmp,"%u",g_queue_get_length(&c->streams));
+	json_builder_add_string_value (builder, tmp);
+	ZERO(tmp);
+	json_builder_set_member_name (builder, "num_medias");
+	snprintf(tmp,"%u",g_queue_get_length(&c->medias));
+	json_builder_add_string_value (builder, tmp);
+	ZERO(tmp);
+	json_builder_set_member_name (builder, "num_tags");
+	snprintf(tmp,"%u",g_queue_get_length(&c->monologues));
+	json_builder_add_string_value (builder, tmp);
+	ZERO(tmp);
+	json_builder_set_member_name (builder, "num_maps");
+	snprintf(tmp,"%u",g_queue_get_length(&c->endpoint_maps));
+	json_builder_add_string_value (builder, tmp);
+	ZERO(tmp);
+	json_builder_set_member_name (builder, "ml_deleted");
+	snprintf(tmp,"%llu",(long long unsigned) c->ml_deleted);
+	json_builder_add_string_value (builder, tmp);
+	ZERO(tmp);
+	json_builder_set_member_name (builder, "created_from");
+	snprintf(tmp,"%s",c->created_from);
+	json_builder_add_string_value (builder, tmp);
+	ZERO(tmp);
+	json_builder_set_member_name (builder, "created_from_addr");
+	snprintf(tmp,"%s",sockaddr_print_buf(&c->created_from_addr));
+	json_builder_add_string_value (builder, tmp);
+	ZERO(tmp);
+	json_builder_set_member_name (builder, "redis_hosted_db");
+	snprintf(tmp,"%u",c->redis_hosted_db);
+	json_builder_add_string_value (builder, tmp);
+	ZERO(tmp);
+
+	json_builder_end_object (builder);
 
 
+	for (l = c->stream_fds.head; l; l = l->next) {
+		sfd = l->data;
+
+		snprintf(tmp,"sfd-"PB"-%u",STR(&c->callid),sfd->unique_id);
+		json_builder_set_member_name (builder, tmp);
+		ZERO(tmp);
+
+		json_builder_begin_object (builder);
+
+		json_builder_set_member_name (builder, "pref_family");
+		snprintf(tmp,"%s",sfd->local_intf->logical->preferred_family->rfc_name);
+		json_builder_add_string_value (builder, tmp);
+		ZERO(tmp);
+		json_builder_set_member_name (builder, "localport");
+		snprintf(tmp,"%u",sfd->socket.local.port);
+		json_builder_add_string_value (builder, tmp);
+		ZERO(tmp);
+		json_builder_set_member_name (builder, "logical_intf");
+		snprintf(tmp,PB,STR(&sfd->local_intf->logical->name));
+		json_builder_add_string_value (builder, tmp);
+		ZERO(tmp);
+		json_builder_set_member_name (builder, "local_intf_uid");
+		snprintf(tmp,"%u",sfd->local_intf->unique_id);
+		json_builder_add_string_value (builder, tmp);
+		ZERO(tmp);
+		json_builder_set_member_name (builder, "stream");
+		snprintf(tmp,"%u",sfd->stream->unique_id);
+		json_builder_add_string_value (builder, tmp);
+		ZERO(tmp);
+
+		json_builder_end_object (builder);
+
+	} // --- for
+
+
+
+
+
+
+
+	json_builder_add_string_value (builder, "http://www.gnome.org/img/flash/two-thirty.png");
+
+	json_builder_set_member_name (builder, "size");
+	json_builder_begin_array (builder);
+	json_builder_add_int_value (builder, 652);
+	json_builder_add_int_value (builder, 242);
+	json_builder_end_array (builder);
+
+	json_builder_end_object (builder);
+	json_builder_end_object (builder);
+
+
+
+}
+
+
+void redis_update_onekey(struct call *c, struct redis *r) {
+	GList *n, *k, *m;
+	struct call_monologue *ml, *ml2;
+
+	struct call_media *media;
+	struct packet_stream *ps;
+	struct intf_list *il;
+	struct endpoint_map *ep;
+	struct rtp_payload_type *pt;
+	unsigned int redis_expires_s;
+
+	if (!r)
+		return;
+
+	mutex_lock(&r->lock);
+	if (redis_check_conn(r) == REDIS_STATE_DISCONNECTED) {
+		mutex_unlock(&r->lock);
+		return ;
+	}
+
+	rwlock_lock_r(&c->master_lock);
+
+	redis_expires_s = c->callmaster->conf.redis_expires_secs;
+
+	c->redis_hosted_db = r->db;
+	if (redisCommandNR(r->ctx, "SELECT %i", c->redis_hosted_db)) {
+		rlog(LOG_ERR, " >>>>>>>>>>>>>>>>> Redis error.");
+		goto err;
+	}
+
+	redis_pipe(r, "DEL cid-"PB"", STR(&c->callid));
+
+
+	redis_encode_json(struct call *c);
+
+
+
+
+
+	mutex_unlock(&r->lock);
+	rwlock_unlock_r(&c->master_lock);
+
+	return;
+err:
+
+	mutex_unlock(&r->lock);
+	rwlock_unlock_r(&c->master_lock);
+	if (r->ctx->err)
+		rlog(LOG_ERR, "Redis error: %s", r->ctx->errstr);
+	redisFree(r->ctx);
+	r->ctx = NULL;
+
+}
 
 /*
  * Redis data structure:
@@ -1981,25 +2186,4 @@ err:
 	rwlock_unlock_r(&c->master_lock);
 	mutex_unlock(&r->lock);
 
-	if (r->ctx->err)
-		rlog(LOG_ERR, "Redis error: %s", r->ctx->errstr);
-	redisFree(r->ctx);
-	r->ctx = NULL;
-}
-
-
-
-
-
-void redis_wipe(struct redis *r) {
-	if (!r)
-		return;
-
-	mutex_lock(&r->lock);
-	if (redis_check_conn(r) == REDIS_STATE_DISCONNECTED) {
-		mutex_unlock(&r->lock);
-		return ;
-	}
-	redisCommandNR(r->ctx, "DEL calls");
-	mutex_unlock(&r->lock);
-}
+	if (r->ctx->e
