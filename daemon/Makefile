@@ -7,6 +7,7 @@ CFLAGS+=	`pkg-config --cflags zlib`
 CFLAGS+=	`pkg-config --cflags openssl`
 CFLAGS+=	`pkg-config --cflags libevent_pthreads`
 CFLAGS+=	`pcre-config --cflags`
+CFLAGS+=	`pkg-config --cflags json-glib-1.0`
 CFLAGS+=	-I../kernel-module/
 CFLAGS+=	-D_GNU_SOURCE
 
@@ -50,6 +51,7 @@ LDFLAGS+=       `pkg-config --libs libpcre`
 LDFLAGS+=       `pkg-config --libs libcrypto`
 LDFLAGS+=	`pkg-config --libs openssl`
 LDFLAGS+=	`pkg-config --libs libevent_pthreads`
+LDFLAGS+=	`pkg-config --libs`
 LDFLAGS+=	-lpcap
 LDFLAGS+=	`pcre-config --libs`
 LDFLAGS+=	`xmlrpc-c-config client --libs`
