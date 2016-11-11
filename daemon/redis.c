@@ -1672,6 +1672,7 @@ void redis_encode_json(struct call *c) {
 
 	GList *l=0;
 	struct stream_fd *sfd;
+	struct packet_stream *ps;
 	JsonBuilder *builder = json_builder_new ();
 
 	json_builder_begin_object (builder);
@@ -1776,6 +1777,124 @@ void redis_encode_json(struct call *c) {
 		json_builder_end_object (builder);
 
 	} // --- for
+
+
+	for (l = c->streams.head; l; l = l->next) {
+		ps = l->data;
+
+		mutex_lock(&ps->in_lock);
+		mutex_lock(&ps->out_lock);
+
+		snprintf(tmp,"stream-"PB"-%u",STR(&c->callid),sfd->unique_id);
+		json_builder_set_member_name (builder, tmp);
+		ZERO(tmp);
+
+		json_builder_begin_object (builder);
+
+		json_builder_set_member_name (builder, "media");
+		snprintf(tmp,"%u",ps->media->unique_id);
+		json_builder_add_string_value (builder, tmp);
+		ZERO(tmp);
+
+		json_builder_set_member_name (builder, "sfd");
+		snprintf(tmp,"%u",ps->selected_sfd ? ps->selected_sfd->unique_id : -1);
+		json_builder_add_string_value (builder, tmp);
+		ZERO(tmp);
+
+		json_builder_set_member_name (builder, "rtp_sink");
+		snprintf(tmp,"%u",ps->rtp_sink ? ps->rtp_sink->unique_id : -1);
+		json_builder_add_string_value (builder, tmp);
+		ZERO(tmp);
+
+		json_builder_set_member_name (builder, "rtcp_sink");
+		snprintf(tmp,"%u",ps->rtcp_sink ? ps->rtcp_sink->unique_id : -1);
+		json_builder_add_string_value (builder, tmp);
+		ZERO(tmp);
+
+		json_builder_set_member_name (builder, "rtcp_sibling");
+		snprintf(tmp,"%u",ps->rtcp_sibling ? ps->rtcp_sibling->unique_id : -1);
+		json_builder_add_string_value (builder, tmp);
+		ZERO(tmp);
+
+		json_builder_set_member_name (builder, "last_packet");
+		snprintf(tmp,UINT64F,atomic64_get(&ps->last_packet));
+		json_builder_add_string_value (builder, tmp);
+		ZERO(tmp);
+
+		json_builder_set_member_name (builder, "ps_flags");
+		snprintf(tmp,"%u",ps->ps_flags);
+		json_builder_add_string_value (builder, tmp);
+		ZERO(tmp);
+
+		json_builder_set_member_name (builder, "component");
+		snprintf(tmp,"%u",ps->component);
+		json_builder_add_string_value (builder, tmp);
+		ZERO(tmp);
+
+//		redis_update_endpoint(r, "stream", &c->callid, ps->unique_id, "endpoint", &ps->endpoint);
+//		redis_update_endpoint(r, "stream", &c->callid, ps->unique_id, "advertised_endpoint",
+//				&ps->advertised_endpoint);
+//		redis_update_stats(r, "stream", &c->callid, ps->unique_id, "stats", &ps->stats);
+//		redis_update_crypto_context(r, "stream", &c->callid, ps->unique_id, &ps->crypto);
+
+		json_builder_end_object (builder);
+
+	} // --- for
+
+
+
+
+
+
+	for (l = c->streams.head; l; l = l->next) {
+		ps = l->data;
+
+		mutex_lock(&ps->in_lock);
+		mutex_lock(&ps->out_lock);
+
+		redis_pipe(r, "HMSET stream-"PB"-%u media %u sfd %u rtp_sink %u "
+			"rtcp_sink %u rtcp_sibling %u last_packet "UINT64F" "
+			"ps_flags %u component %u",
+			STR(&c->callid), ps->unique_id,
+			ps->media->unique_id,
+			ps->selected_sfd ? ps->selected_sfd->unique_id : -1,
+			ps->rtp_sink ? ps->rtp_sink->unique_id : -1,
+			ps->rtcp_sink ? ps->rtcp_sink->unique_id : -1,
+			ps->rtcp_sibling ? ps->rtcp_sibling->unique_id : -1,
+			atomic64_get(&ps->last_packet),
+			ps->ps_flags,
+			ps->component);
+		redis_update_endpoint(r, "stream", &c->callid, ps->unique_id, "endpoint", &ps->endpoint);
+		redis_update_endpoint(r, "stream", &c->callid, ps->unique_id, "advertised_endpoint",
+				&ps->advertised_endpoint);
+		redis_update_stats(r, "stream", &c->callid, ps->unique_id, "stats", &ps->stats);
+		redis_update_crypto_context(r, "stream", &c->callid, ps->unique_id, &ps->crypto);
+		/* XXX DTLS?? */
+
+		for (k = ps->sfds.head; k; k = k->next) {
+			sfd = k->data;
+			redis_pipe(r, "RPUSH stream_sfds-"PB"-%u %u",
+				STR(&c->callid), ps->unique_id,
+				sfd->unique_id);
+		}
+
+		mutex_unlock(&ps->in_lock);
+		mutex_unlock(&ps->out_lock);
+
+		redis_pipe(r, "EXPIRE stream-"PB"-%u %u", STR(&c->callid), ps->unique_id, redis_expires_s);
+		redis_pipe(r, "EXPIRE stream_sfds-"PB"-%u %u", STR(&c->callid), ps->unique_id, redis_expires_s);
+
+		redis_pipe(r, "DEL stream-"PB"-%u stream_sfds-"PB"-%u",
+				STR(&c->callid), ps->unique_id + 1,
+				STR(&c->callid), ps->unique_id + 1);
+	}
+
+
+
+
+
+
+
 
 
 
