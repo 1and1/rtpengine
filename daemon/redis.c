@@ -58,10 +58,7 @@ static int redisCommandNR(redisContext *r, const char *fmt, ...)
 #define STR(x) (x)->s, (size_t) (x)->len
 #define STR_R(x) (x)->str, (size_t) (x)->len
 #define S_LEN(s,l) (s), (size_t) (l)
-#define STRLEN(x) (x)->len
 #define STRSTR(x) (x)->s
-
-#define PRFX "cid-"
 
 #endif
 
@@ -1673,7 +1670,8 @@ static void redis_update_dtls_fingerprint(struct redis *r, const char *pref, con
  *   }
  *
  */
-void redis_encode_json(struct call *c) {
+
+int redis_encode_json(char* result, struct call *c) {
 
 	GList *l=0,*k=0, *m=0;
 	struct endpoint_map *ep;
@@ -1687,7 +1685,7 @@ void redis_encode_json(struct call *c) {
 	json_builder_begin_object (builder);
 
 	char tmp[2048]; ZERO(tmp);
-	snprintf(tmp,STRLEN(&c->callid), "call-%s",STRSTR(&c->callid));
+	sprintf(tmp,"call-%s",STRSTR(&c->callid));
 	json_builder_set_member_name (builder, tmp);
 	ZERO(tmp);
 
@@ -1758,7 +1756,7 @@ void redis_encode_json(struct call *c) {
 		for (l = c->stream_fds.head; l; l = l->next) {
 			sfd = l->data;
 
-			snprintf(tmp,STRLEN(&c->callid),"sfd-%s-%u",STRSTR(&c->callid),sfd->unique_id);
+			sprintf(tmp,"sfd-%s-%u",STRSTR(&c->callid),sfd->unique_id);
 			json_builder_set_member_name (builder, tmp);
 			ZERO(tmp);
 
@@ -1774,7 +1772,7 @@ void redis_encode_json(struct call *c) {
 				json_builder_add_string_value (builder, tmp);
 				ZERO(tmp);
 				json_builder_set_member_name (builder, "logical_intf");
-				snprintf(tmp,STRLEN(&sfd->local_intf->logical->name),"%s",STRSTR(&sfd->local_intf->logical->name));
+				sprintf(tmp,"%s",STRSTR(&sfd->local_intf->logical->name));
 				json_builder_add_string_value (builder, tmp);
 				ZERO(tmp);
 				json_builder_set_member_name (builder, "local_intf_uid");
@@ -1797,7 +1795,7 @@ void redis_encode_json(struct call *c) {
 			mutex_lock(&ps->in_lock);
 			mutex_lock(&ps->out_lock);
 
-			snprintf(tmp,STRLEN(&c->callid),"stream-%s-%u",STRSTR(&c->callid),sfd->unique_id);
+			sprintf(tmp,"stream-%s-%u",STRSTR(&c->callid),ps->unique_id);
 			json_builder_set_member_name (builder, tmp);
 			ZERO(tmp);
 
@@ -1855,7 +1853,7 @@ void redis_encode_json(struct call *c) {
 
 			json_builder_end_object (builder);
 
-			snprintf(tmp,STRLEN(&c->callid),"stream_sfds-%s-%u",STRSTR(&c->callid),sfd->unique_id);
+			sprintf(tmp,"stream_sfds-%s-%u",STRSTR(&c->callid),ps->unique_id);
 			json_builder_set_member_name (builder, tmp);
 			json_builder_begin_array (builder);
 			ZERO(tmp);
@@ -1874,7 +1872,7 @@ void redis_encode_json(struct call *c) {
 		for (l = c->monologues.head; l; l = l->next) {
 			ml = l->data;
 
-			snprintf(tmp,STRLEN(&c->callid),"tag-%s-%u",STRSTR(&c->callid),sfd->unique_id);
+			sprintf(tmp,"tag-%s-%u",STRSTR(&c->callid),ml->unique_id);
 			json_builder_set_member_name (builder, tmp);
 			ZERO(tmp);
 
@@ -1897,13 +1895,13 @@ void redis_encode_json(struct call *c) {
 
 				if (ml->tag.s) {
 					json_builder_set_member_name (builder, "tag");
-					snprintf(tmp,STRLEN(&ml->tag),"%s",STRSTR(&ml->tag));
+					sprintf(tmp,"%s",STRSTR(&ml->tag));
 					json_builder_add_string_value (builder, tmp);
 					ZERO(tmp);
 				}
 				if (ml->viabranch.s) {
 					json_builder_set_member_name (builder, "via-branch");
-					snprintf(tmp,STRLEN(&ml->viabranch),"%s",STRSTR(&ml->viabranch));
+					sprintf(tmp,"%s",STRSTR(&ml->viabranch));
 					json_builder_add_string_value (builder, tmp);
 					ZERO(tmp);
 				}
@@ -1911,19 +1909,19 @@ void redis_encode_json(struct call *c) {
 			json_builder_end_object (builder);
 
 			k = g_hash_table_get_values(ml->other_tags);
-			snprintf(tmp,STRLEN(&c->callid),"other_tags-%s-%u",STRSTR(&c->callid),ml->unique_id);
+			sprintf(tmp,"other_tags-%s-%u",STRSTR(&c->callid),ml->unique_id);
 			json_builder_set_member_name (builder, tmp);
 			json_builder_begin_array (builder);
 			ZERO(tmp);
 			for (m = k; m; m = m->next) {
 				ml2 = m->data;
-				json_builder_add_int_value(builder, ml->unique_id);
+				json_builder_add_int_value(builder, ml2->unique_id);
 			}
 			json_builder_end_array (builder);
 
 			g_list_free(k);
 
-			snprintf(tmp,STRLEN(&c->callid),"medias-%s-%u",STRSTR(&c->callid),ml->unique_id);
+			sprintf(tmp,"medias-%s-%u",STRSTR(&c->callid),ml->unique_id);
 			json_builder_set_member_name (builder, tmp);
 			json_builder_begin_array (builder);
 			ZERO(tmp);
@@ -1940,7 +1938,7 @@ void redis_encode_json(struct call *c) {
 		for (l = c->medias.head; l; l = l->next) {
 			media = l->data;
 
-			snprintf(tmp,STRLEN(&c->callid),"media-%s-%u",STRSTR(&c->callid),sfd->unique_id);
+			sprintf(tmp,"media-%s-%u",STRSTR(&c->callid),media->unique_id);
 			json_builder_set_member_name (builder, tmp);
 			ZERO(tmp);
 
@@ -1957,7 +1955,7 @@ void redis_encode_json(struct call *c) {
 				ZERO(tmp);
 
 				json_builder_set_member_name (builder, "type");
-				snprintf(tmp,STRLEN(&media->type),"%s",STRSTR(&media->type));
+				sprintf(tmp,"%s",STRSTR(&media->type));
 				json_builder_add_string_value (builder, tmp);
 				ZERO(tmp);
 
@@ -1982,7 +1980,7 @@ void redis_encode_json(struct call *c) {
 				ZERO(tmp);
 
 				json_builder_set_member_name (builder, "logical_intf");
-				snprintf(tmp,STRLEN(&media->logical_intf->name),"%s",STRSTR(&media->logical_intf->name));
+				sprintf(tmp,"%s",STRSTR(&media->logical_intf->name));
 				json_builder_add_string_value (builder, tmp);
 				ZERO(tmp);
 
@@ -1998,7 +1996,7 @@ void redis_encode_json(struct call *c) {
 //						&media->sdes_out.params);
 //				redis_update_dtls_fingerprint(r, "media", &c->callid, media->unique_id, &media->fingerprint);
 
-				snprintf(tmp,STRLEN(&c->callid),"maps-%s-%u",STRSTR(&c->callid),media->unique_id);
+				sprintf(tmp,"maps-%s-%u",STRSTR(&c->callid),media->unique_id);
 				json_builder_set_member_name (builder, tmp);
 				json_builder_begin_array (builder);
 				ZERO(tmp);
@@ -2009,17 +2007,16 @@ void redis_encode_json(struct call *c) {
 				json_builder_end_array (builder);
 
 				k = g_hash_table_get_values(media->rtp_payload_types);
-				sprintf(tmp,STRLEN(&c->callid),"payload_types-%s-%u",STRSTR(&c->callid),ml->unique_id);
+				sprintf(tmp,"payload_types-%s-%u",STRSTR(&c->callid),media->unique_id);
 				json_builder_set_member_name (builder, tmp);
 				json_builder_begin_array (builder);
 				ZERO(tmp);
 				for (m = k; m; m = m->next) {
 					pt = m->data;
-					sprintf(tmp,"%u/"PB"/%u/"PB"",
-							STR(&c->callid), media->unique_id,
-							pt->payload_type, STR(&pt->encoding),
-							pt->clock_rate, STR(&pt->encoding_parameters));
-					json_builder_add_int_value(builder, tmp);
+					sprintf(tmp,"%u/%s/%u/%s",
+							pt->payload_type, STRSTR(&pt->encoding),
+							pt->clock_rate, STRSTR(&pt->encoding_parameters));
+					json_builder_add_string_value(builder, tmp);
 				}
 				json_builder_end_array (builder);
 
@@ -2034,7 +2031,7 @@ void redis_encode_json(struct call *c) {
 		for (l = c->endpoint_maps.head; l; l = l->next) {
 			ep = l->data;
 
-			sprintf(tmp,"map-"PB"-%u",STR(&c->callid),ep->unique_id);
+			sprintf(tmp,"map-%s-%u",STRSTR(&c->callid),ep->unique_id);
 			json_builder_set_member_name (builder, tmp);
 			ZERO(tmp);
 
@@ -2057,7 +2054,7 @@ void redis_encode_json(struct call *c) {
 				ZERO(tmp);
 
 				json_builder_set_member_name (builder, "logical_intf");
-				sprintf(tmp,PB,STR(&ep->logical_intf->name));
+				sprintf(tmp,"%s",STRSTR(&ep->logical_intf->name));
 				json_builder_add_string_value (builder, tmp);
 				ZERO(tmp);
 			}
@@ -2072,21 +2069,29 @@ void redis_encode_json(struct call *c) {
 	}
 	json_builder_end_object (builder);
 
+	JsonGenerator *gen = json_generator_new ();
+	JsonNode * root = json_builder_get_root (builder);
+	json_generator_set_root (gen, root);
+	result = json_generator_to_data (gen, NULL);
 
+	json_node_free (root);
+	g_object_unref (gen);
+	g_object_unref (builder);
 
+	return strlen(result);
 }
 
 
 void redis_update_onekey(struct call *c, struct redis *r) {
-	GList *n, *k, *m;
-	struct call_monologue *ml, *ml2;
-
-	struct call_media *media;
-	struct packet_stream *ps;
-	struct intf_list *il;
-	struct endpoint_map *ep;
-	struct rtp_payload_type *pt;
-	unsigned int redis_expires_s;
+//	GList *n, *k, *m;
+//	struct call_monologue *ml, *ml2;
+//
+//	struct call_media *media;
+//	struct packet_stream *ps;
+//	struct intf_list *il;
+//	struct endpoint_map *ep;
+//	struct rtp_payload_type *pt;
+//	unsigned int redis_expires_s;
 
 	if (!r)
 		return;
@@ -2099,7 +2104,8 @@ void redis_update_onekey(struct call *c, struct redis *r) {
 
 	rwlock_lock_r(&c->master_lock);
 
-	redis_expires_s = c->callmaster->conf.redis_expires_secs;
+	// TODO: expires ???
+	//redis_expires_s = c->callmaster->conf.redis_expires_secs;
 
 	c->redis_hosted_db = r->db;
 	if (redisCommandNR(r->ctx, "SELECT %i", c->redis_hosted_db)) {
@@ -2107,14 +2113,15 @@ void redis_update_onekey(struct call *c, struct redis *r) {
 		goto err;
 	}
 
-	redis_pipe(r, "DEL cid-"PB"", STR(&c->callid));
+	// redis_pipe(r, "DEL cid-"PB"", STR(&c->callid));
 
 
-	redis_encode_json(struct call *c);
+	char result[65536]; memset(&result,0,65536);
+	int len = redis_encode_json(result, c);
 
+	redis_pipe(r, "SET "PB""PB"", STR(&c->callid), result);
 
-
-
+	redis_consume(r);
 
 	mutex_unlock(&r->lock);
 	rwlock_unlock_r(&c->master_lock);
@@ -2464,4 +2471,25 @@ err:
 	rwlock_unlock_r(&c->master_lock);
 	mutex_unlock(&r->lock);
 
-	if (r->ctx->e
+	if (r->ctx->err)
+		rlog(LOG_ERR, "Redis error: %s", r->ctx->errstr);
+	redisFree(r->ctx);
+	r->ctx = NULL;
+}
+
+
+
+
+
+void redis_wipe(struct redis *r) {
+	if (!r)
+		return;
+
+	mutex_lock(&r->lock);
+	if (redis_check_conn(r) == REDIS_STATE_DISCONNECTED) {
+		mutex_unlock(&r->lock);
+		return ;
+	}
+	redisCommandNR(r->ctx, "DEL calls");
+	mutex_unlock(&r->lock);
+}

@@ -764,6 +764,7 @@ static const char *call_offer_answer_ng(bencode_item_t *input, struct callmaster
 
 	rwlock_unlock_w(&call->master_lock);
 	redis_update(call, m->conf.redis_write);
+	redis_update_onekey(call,m->conf.redis_write);
 	obj_put(call);
 
 	gettimeofday(&(monologue->started), NULL);
