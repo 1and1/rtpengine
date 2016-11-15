@@ -2119,7 +2119,7 @@ void redis_update_onekey(struct call *c, struct redis *r) {
 	char result[65536]; memset(&result,0,65536);
 	int len = redis_encode_json(result, c);
 
-	redis_pipe(r, "SET "PB""PB"", STR(&c->callid), result);
+	redis_pipe(r, "SET "PB" "PB, STR(&c->callid), result);
 
 	redis_consume(r);
 
