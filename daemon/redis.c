@@ -1671,7 +1671,7 @@ static void redis_update_dtls_fingerprint(struct redis *r, const char *pref, con
  *
  */
 
-int redis_encode_json(char* result, struct call *c) {
+char* redis_encode_json(struct call *c) {
 
 	GList *l=0,*k=0, *m=0;
 	struct endpoint_map *ep;
@@ -1680,12 +1680,13 @@ int redis_encode_json(char* result, struct call *c) {
 	struct stream_fd *sfd;
 	struct packet_stream *ps;
 	struct call_monologue *ml, *ml2;
+	g_type_init();
 	JsonBuilder *builder = json_builder_new ();
 
 	json_builder_begin_object (builder);
 
 	char tmp[2048]; ZERO(tmp);
-	sprintf(tmp,"call-%s",STRSTR(&c->callid));
+	sprintf(tmp,"cid-%s",STRSTR(&c->callid));
 	json_builder_set_member_name (builder, tmp);
 	ZERO(tmp);
 
@@ -2072,13 +2073,14 @@ int redis_encode_json(char* result, struct call *c) {
 	JsonGenerator *gen = json_generator_new ();
 	JsonNode * root = json_builder_get_root (builder);
 	json_generator_set_root (gen, root);
-	result = json_generator_to_data (gen, NULL);
+	char* result = json_generator_to_data (gen, NULL);
 
 	json_node_free (root);
 	g_object_unref (gen);
 	g_object_unref (builder);
 
-	return strlen(result);
+	return result;
+
 }
 
 
@@ -2115,15 +2117,14 @@ void redis_update_onekey(struct call *c, struct redis *r) {
 
 	// redis_pipe(r, "DEL cid-"PB"", STR(&c->callid));
 
+	char* result = redis_encode_json(c);
 
-	char result[65536]; memset(&result,0,65536);
-	int len = redis_encode_json(result, c);
-
-	rlog(LOG_ERR,"%s",result);
-
-	redis_pipe(r, "SET "PB" "PB, STR(&c->callid), result);
+	redis_pipe(r, "SET cid-"PB" %s", STR(&c->callid), result);
 
 	redis_consume(r);
+
+	if (result)
+		free(result);
 
 	mutex_unlock(&r->lock);
 	rwlock_unlock_r(&c->master_lock);
