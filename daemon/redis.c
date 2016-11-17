@@ -2086,15 +2086,17 @@ char* redis_encode_json(struct call *c) {
 				sprintf(tmp,"%s",STRSTR(&ep->logical_intf->name));
 				json_builder_add_string_value (builder, tmp);
 				ZERO(tmp);
+
+				// next is:
+				// redis_update_endpoint(r, "map", &c->callid, ep->unique_id, "endpoint", &ep->endpoint);
+				json_builder_set_member_name (builder, "endpoint");
+				sprintf(tmp,"%s",endpoint_print_buf(&ep->endpoint));
+				json_builder_add_string_value (builder, tmp);
+				ZERO(tmp);
 			}
 			json_builder_end_object (builder);
 
-			// next is:
-			// redis_update_endpoint(r, "map", &c->callid, ep->unique_id, "endpoint", &ep->endpoint);
-			json_builder_set_member_name (builder, "endpoint");
-			sprintf(tmp,"%s",endpoint_print_buf(&ep->endpoint));
-			json_builder_add_string_value (builder, tmp);
-			ZERO(tmp);
+
 
 		} // --- for c->endpoint_maps.head
 
