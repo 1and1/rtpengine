@@ -1843,12 +1843,40 @@ char* redis_encode_json(struct call *c) {
 				json_builder_add_string_value (builder, tmp);
 				ZERO(tmp);
 
-				// TODO !
-				//		redis_update_endpoint(r, "stream", &c->callid, ps->unique_id, "endpoint", &ps->endpoint);
+				// this is redis_update_endpoint(r, "stream", &c->callid, ps->unique_id, "endpoint", &ps->endpoint);
+				json_builder_set_member_name (builder, "endpoint");
+				sprintf(tmp,"%s",endpoint_print_buf(&ps->endpoint));
+				json_builder_add_string_value (builder, tmp);
+				ZERO(tmp);
+
+				// next is:
 				//		redis_update_endpoint(r, "stream", &c->callid, ps->unique_id, "advertised_endpoint",
 				//				&ps->advertised_endpoint);
+				json_builder_set_member_name (builder, "advertised_endpoint");
+				sprintf(tmp,"%s",endpoint_print_buf(&ps->advertised_endpoint));
+				json_builder_add_string_value (builder, tmp);
+				ZERO(tmp);
+
+				// next is:
+				// redis_pipe(r, "HMSET %s-"PB"-%u %s-packets "UINT64F" %s-bytes "UINT64F" %s-errors "UINT64F"",
+				//	pref, STR(callid), unique_id,
+				//	key, atomic64_get(&s->packets), key, atomic64_get(&s->bytes),
+				//	key, atomic64_get(&s->errors));
 				//		redis_update_stats(r, "stream", &c->callid, ps->unique_id, "stats", &ps->stats);
+
+				json_builder_set_member_name (builder, "stats-packets");
+				json_builder_add_int_value(builder, atomic64_get(&ps->stats.packets));
+
+				json_builder_set_member_name (builder, "stats-bytes");
+				json_builder_add_int_value (builder, atomic64_get(&ps->stats.bytes));
+
+				json_builder_set_member_name (builder, "stats-errors");
+				json_builder_add_int_value (builder, atomic64_get(&ps->stats.errors));
+
+				// TODO !!!!!
+				// next is:
 				//		redis_update_crypto_context(r, "stream", &c->callid, ps->unique_id, &ps->crypto);
+
 
 			}
 
@@ -1990,7 +2018,7 @@ char* redis_encode_json(struct call *c) {
 				json_builder_add_string_value (builder, tmp);
 				ZERO(tmp);
 
-				// TODO
+				// TODO !!!!
 //				redis_update_crypto_params(r, "media", &c->callid, media->unique_id, "sdes_in",
 //						&media->sdes_in.params);
 //				redis_update_crypto_params(r, "media", &c->callid, media->unique_id, "sdes_out",
@@ -2061,8 +2089,12 @@ char* redis_encode_json(struct call *c) {
 			}
 			json_builder_end_object (builder);
 
+			// next is:
 			// redis_update_endpoint(r, "map", &c->callid, ep->unique_id, "endpoint", &ep->endpoint);
-
+			json_builder_set_member_name (builder, "endpoint");
+			sprintf(tmp,"%s",endpoint_print_buf(&ep->endpoint));
+			json_builder_add_string_value (builder, tmp);
+			ZERO(tmp);
 
 		} // --- for c->endpoint_maps.head
 
@@ -2093,7 +2125,7 @@ void redis_update_onekey(struct call *c, struct redis *r) {
 //	struct intf_list *il;
 //	struct endpoint_map *ep;
 //	struct rtp_payload_type *pt;
-//	unsigned int redis_expires_s;
+	unsigned int redis_expires_s;
 
 	if (!r)
 		return;
@@ -2106,8 +2138,7 @@ void redis_update_onekey(struct call *c, struct redis *r) {
 
 	rwlock_lock_r(&c->master_lock);
 
-	// TODO: expires ???
-	//redis_expires_s = c->callmaster->conf.redis_expires_secs;
+	redis_expires_s = c->callmaster->conf.redis_expires_secs;
 
 	c->redis_hosted_db = r->db;
 	if (redisCommandNR(r->ctx, "SELECT %i", c->redis_hosted_db)) {
@@ -2115,11 +2146,10 @@ void redis_update_onekey(struct call *c, struct redis *r) {
 		goto err;
 	}
 
-	// redis_pipe(r, "DEL cid-"PB"", STR(&c->callid));
-
 	char* result = redis_encode_json(c);
 
 	redis_pipe(r, "SET cid-"PB" %s", STR(&c->callid), result);
+	redis_pipe(r, "EXPIRE cid-"PB" %i", STR(&c->callid), redis_expires_s);
 
 	redis_consume(r);
 
