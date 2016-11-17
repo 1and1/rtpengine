@@ -1673,12 +1673,13 @@ static void redis_update_dtls_fingerprint(struct redis *r, const char *pref, con
 
 char* redis_encode_json(struct call *c) {
 
-	GList *l=0,*k=0, *m=0;
+	GList *l=0,*k=0, *m=0, *n=0;
 	struct endpoint_map *ep;
 	struct call_media *media;
 	struct rtp_payload_type *pt;
 	struct stream_fd *sfd;
 	struct packet_stream *ps;
+	struct intf_list *il;
 	struct call_monologue *ml, *ml2;
 	g_type_init();
 	JsonBuilder *builder = json_builder_new ();
@@ -2025,6 +2026,16 @@ char* redis_encode_json(struct call *c) {
 //						&media->sdes_out.params);
 //				redis_update_dtls_fingerprint(r, "media", &c->callid, media->unique_id, &media->fingerprint);
 
+				sprintf(tmp,"streams-%s-%u",STRSTR(&c->callid),media->unique_id);
+				json_builder_set_member_name (builder, tmp);
+				json_builder_begin_array (builder);
+				ZERO(tmp);
+				for (m = media->streams.head; m; m = m->next) {
+					ps = m->data;
+					json_builder_add_int_value(builder, ps->unique_id);
+				}
+				json_builder_end_array (builder);
+
 				sprintf(tmp,"maps-%s-%u",STRSTR(&c->callid),media->unique_id);
 				json_builder_set_member_name (builder, tmp);
 				json_builder_begin_array (builder);
@@ -2093,6 +2104,23 @@ char* redis_encode_json(struct call *c) {
 				sprintf(tmp,"%s",endpoint_print_buf(&ep->endpoint));
 				json_builder_add_string_value (builder, tmp);
 				ZERO(tmp);
+
+				sprintf(tmp,"map_sfds-%s-%u",STRSTR(&c->callid),ep->unique_id);
+				json_builder_set_member_name (builder, tmp);
+				json_builder_begin_array (builder);
+				ZERO(tmp);
+				for (m = ep->intf_sfds.head; m; m = m->next) {
+					il = m->data;
+					sprintf(tmp,"loc-%u",il->local_intf->unique_id);
+					json_builder_add_string_value(builder, tmp);
+					ZERO(tmp);
+					for (n = il->list.head; n; n = n->next) {
+						sfd = n->data;
+						json_builder_add_int_value(builder, sfd->unique_id);
+					}
+				}
+				json_builder_end_array (builder);
+
 			}
 			json_builder_end_object (builder);
 
