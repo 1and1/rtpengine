@@ -1440,6 +1440,18 @@ static void redis_restore_call(struct redis *r, struct callmaster *m, const redi
 	if (!c)
 		goto err8;
 
+	/* Avoid race between call created from offer and call created via redis notification mechanism:
+	 *
+	 * if this is a thread that requests the creation of a FOREIGN call (onRedisNotification restore thread)
+	 * and the call received via call_get_or_create() is not FOREIGN (OWN call, due to call_offer_answer)
+	 * then exit this function */
+	if ((type == CT_FOREIGN_CALL) && !IS_FOREIGN_CALL(c)) {
+		err = NULL;
+		obj_put(c);
+		rlog(LOG_WARNING, "Renouncing to restore call ID '%.*s' from Redis: call seems to be created already", REDIS_FMT(id));
+		goto err6;
+	}
+
 	err = "missing 'created' timestamp";
 	if (redis_hash_get_time_t(&c->created, &call, "created"))
 		goto err6;
