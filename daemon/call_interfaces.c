@@ -659,6 +659,7 @@ static const char *call_offer_answer_ng(bencode_item_t *input, struct callmaster
 	int ret;
 	struct sdp_ng_flags flags;
 	struct sdp_chopper *chopper;
+	int create_retries = 0;
 
 	if (!bencode_dictionary_get_str(input, "sdp", &sdp))
 		return "No SDP body in message";
@@ -692,20 +693,50 @@ static const char *call_offer_answer_ng(bencode_item_t *input, struct callmaster
      * might have persisted part of the session. rtpengine2 deletes previous
      * call in memory and recreates an OWN call in redis */
 	if (opmode == OP_OFFER) {
-        if (call) {
-            if (IS_FOREIGN_CALL(call)) {
-                /* destroy call and create new one */
-                rwlock_unlock_w(&call->master_lock);
-                call_destroy(call);
-                obj_put(call);
-                call = call_get_or_create(&callid, m, CT_OWN_CALL);
-            }
-        }
-        else {
-            /* call == NULL, should create call */
-            call = call_get_or_create(&callid, m, CT_OWN_CALL);
-        }
-    }
+	        if (call) {
+        		if (IS_FOREIGN_CALL(call)) {
+				/* destroy call and create new one */
+				rwlock_unlock_w(&call->master_lock);
+				call_destroy(call);
+				obj_put(call);
+				call = call_get_or_create(&callid, m, CT_OWN_CALL);
+            		}
+        	}
+	        else {
+			/* call == NULL, should create call */
+			do{
+				call = call_get_or_create(&callid, m, CT_OWN_CALL);
+
+				errstr = "Unknown call-id";
+				if (!call)
+					goto out;
+
+				if (!IS_FOREIGN_CALL(call))
+					break;
+
+				/* Avoid race between call created from offer and call created via redis notification mechanism:
+				*
+				* this is a thread that requests the creation of an OWN call
+				* if the call received via call_get_or_create() is not OWN (FOREIGN, due to onRedisNotification restore thread))
+				* then destroy call and create new one */
+				ilog(LOG_ERR, "Call in the process of being created by redis, retrying to create");
+				rwlock_unlock_w(&call->master_lock);
+				call_destroy(call);
+				obj_put(call);
+				create_retries++;
+			} while (create_retries <= 3);
+
+			if (!call)
+				goto out;
+
+			/* if somehow this call is still FOREIGN */
+			if (IS_FOREIGN_CALL(call)) {
+				errstr = "Creating call takes too long";
+				obj_put(call);
+				goto out;
+			}
+	        }
+	}
 
 	errstr = "Unknown call-id";
 	if (!call)
