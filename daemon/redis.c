@@ -1835,12 +1835,7 @@ char* redis_encode_json(struct call *c) {
 	g_type_init();
 	JsonBuilder *builder = json_builder_new ();
 
-	json_builder_begin_object (builder);
-
 	char tmp[2048]; ZERO(tmp);
-	sprintf(tmp,"cid-%s",STRSTR(&c->callid));
-	json_builder_set_member_name (builder, tmp);
-	ZERO(tmp);
 
 	json_builder_begin_object (builder);
 	{
@@ -1849,6 +1844,10 @@ char* redis_encode_json(struct call *c) {
 		json_builder_begin_object (builder);
 
 		{
+			sprintf(tmp,"cid-%s",STRSTR(&c->callid));
+			json_builder_set_member_name (builder, tmp);
+			ZERO(tmp);
+
 			json_builder_set_member_name (builder, "created");
 			json_builder_add_int_value (builder, (long long unsigned) c->created);
 
@@ -2285,7 +2284,7 @@ char* redis_encode_json(struct call *c) {
 
 		} // --- for c->endpoint_maps.head
 		json_builder_end_object (builder);
-		json_builder_end_object (builder);
+
 	}
 	json_builder_end_object (builder);
 
