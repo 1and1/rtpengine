@@ -2116,6 +2116,9 @@ char* redis_encode_json(struct call *c) {
 
 		json_builder_end_object (builder);
 
+		json_builder_set_member_name (builder, "medias");
+		json_builder_begin_object (builder);
+
 		for (l = c->medias.head; l; l = l->next) {
 			media = l->data;
 
@@ -2217,7 +2220,10 @@ char* redis_encode_json(struct call *c) {
 			json_builder_end_object (builder);
 
 		} // --- for medias.head
+		json_builder_end_object (builder);
 
+		json_builder_set_member_name (builder, "maps");
+		json_builder_begin_object (builder);
 
 		for (l = c->endpoint_maps.head; l; l = l->next) {
 			ep = l->data;
@@ -2278,7 +2284,7 @@ char* redis_encode_json(struct call *c) {
 
 
 		} // --- for c->endpoint_maps.head
-
+		json_builder_end_object (builder);
 		json_builder_end_object (builder);
 	}
 	json_builder_end_object (builder);
