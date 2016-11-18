@@ -1934,8 +1934,6 @@ char* redis_encode_json(struct call *c) {
 
 		json_builder_end_object (builder);
 
-		json_builder_end_object (builder);
-
 		json_builder_set_member_name (builder, "streams");
 		json_builder_begin_object (builder);
 
