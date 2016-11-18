@@ -1030,7 +1030,7 @@ static int redis_hash_get_crypto_context(struct crypto_context *out, const struc
 	return 0;
 }
 
-static int json_sfds(JsonReader *root_reader, struct call *c, struct redis_list *sfds) {
+static int json_sfds(JsonReader *root_reader,struct call *c, struct redis_list *sfds) {
 	unsigned int i;
 	str family, intf_name;
 	struct redis_hash *rh;
@@ -1045,12 +1045,6 @@ static int json_sfds(JsonReader *root_reader, struct call *c, struct redis_list 
 
 	for (i = 0; i < sfds->len; i++) {
 		rh = &sfds->rh[i];
-
-
-
-
-
-
 
 		if (redis_hash_get_int(&port, rh, "localport"))
 			return -1;
@@ -1900,8 +1894,6 @@ char* redis_encode_json(struct call *c) {
 
 		json_builder_end_object (builder);
 
-		json_builder_begin_object (builder);
-		json_builder_set_member_name (builder, "sdfds");
 
 		for (l = c->stream_fds.head; l; l = l->next) {
 			sfd = l->data;
@@ -1938,10 +1930,6 @@ char* redis_encode_json(struct call *c) {
 
 		} // --- for
 
-		json_builder_end_object (builder);
-
-		json_builder_begin_object (builder);
-		json_builder_set_member_name (builder, "streams");
 
 		for (l = c->streams.head; l; l = l->next) {
 			ps = l->data;
@@ -2050,10 +2038,6 @@ char* redis_encode_json(struct call *c) {
 
 		} // --- for streams.head
 
-		json_builder_end_object (builder);
-
-		json_builder_begin_object (builder);
-		json_builder_set_member_name (builder, "tags");
 
 		for (l = c->monologues.head; l; l = l->next) {
 			ml = l->data;
@@ -2120,10 +2104,6 @@ char* redis_encode_json(struct call *c) {
 
 		} // --- for monologues.head
 
-		json_builder_end_object (builder);
-
-		json_builder_begin_object (builder);
-		json_builder_set_member_name (builder, "medias");
 
 		for (l = c->medias.head; l; l = l->next) {
 			media = l->data;
@@ -2227,10 +2207,6 @@ char* redis_encode_json(struct call *c) {
 
 		} // --- for medias.head
 
-		json_builder_end_object (builder);
-
-		json_builder_begin_object (builder);
-		json_builder_set_member_name (builder, "maps");
 
 		for (l = c->endpoint_maps.head; l; l = l->next) {
 			ep = l->data;
@@ -2292,7 +2268,6 @@ char* redis_encode_json(struct call *c) {
 
 		} // --- for c->endpoint_maps.head
 
-		json_builder_end_object (builder);
 		json_builder_end_object (builder);
 	}
 	json_builder_end_object (builder);
