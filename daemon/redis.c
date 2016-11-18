@@ -2284,7 +2284,7 @@ char* redis_encode_json(struct call *c) {
 
 		} // --- for c->endpoint_maps.head
 		json_builder_end_object (builder);
-
+		json_builder_end_object (builder);
 	}
 	json_builder_end_object (builder);
 
