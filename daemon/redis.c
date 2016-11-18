@@ -725,6 +725,12 @@ static void redis_delete_list(struct redis *r, const str *callid, const char *pr
 }
 
 /* called with r->lock held and c->master_lock held */
+static void redis_delete_call_json(struct call *c, struct redis *r) {
+	redis_pipe(r, "DEL cid-"PB"", STR(&c->callid));
+	redis_consume(r);
+}
+
+/* called with r->lock held and c->master_lock held */
 static void redis_delete_call(struct call *c, struct redis *r) {
 	redis_pipe(r, "DEL notifier-"PB"", STR(&c->callid));
 	redis_pipe(r, "SREM calls "PB"", STR(&c->callid));
@@ -1024,7 +1030,61 @@ static int redis_hash_get_crypto_context(struct crypto_context *out, const struc
 	return 0;
 }
 
+static int json_sfds(JsonReader *root_reader, struct call *c, struct redis_list *sfds) {
+	unsigned int i;
+	str family, intf_name;
+	struct redis_hash *rh;
+	sockfamily_t *fam;
+	struct logical_intf *lif;
+	struct local_intf *loc;
+	GQueue q = G_QUEUE_INIT;
+	unsigned int loc_uid;
+	struct stream_fd *sfd;
+	socket_t *sock;
+	int port;
 
+	for (i = 0; i < sfds->len; i++) {
+		rh = &sfds->rh[i];
+
+
+
+
+
+
+
+		if (redis_hash_get_int(&port, rh, "localport"))
+			return -1;
+		if (redis_hash_get_str(&family, rh, "pref_family"))
+			return -1;
+		if (redis_hash_get_str(&intf_name, rh, "logical_intf"))
+			return -1;
+		if (redis_hash_get_unsigned(&loc_uid, rh, "local_intf_uid"))
+			return -1;
+
+		fam = get_socket_family_rfc(&family);
+		if (!fam)
+			return -1;
+		lif = get_logical_interface(&intf_name, fam, 0);
+		if (!lif)
+			return -1;
+		loc = g_queue_peek_nth(&lif->list, loc_uid);
+		if (!loc)
+			return -1;
+
+		if (__get_consecutive_ports(&q, 1, port, loc->spec))
+			return -1;
+		sock = g_queue_pop_head(&q);
+		if (!sock)
+			return -1;
+		sfd = stream_fd_new(sock, c, loc);
+		// XXX tos
+		if (redis_hash_get_crypto_context(&sfd->crypto, rh))
+			return -1;
+
+		sfds->ptrs[i] = sfd;
+	}
+	return 0;
+}
 
 static int redis_sfds(struct call *c, struct redis_list *sfds) {
 	unsigned int i;
@@ -1380,7 +1440,104 @@ static int redis_link_maps(struct redis *r, struct call *c, struct redis_list *m
 	}
 	return 0;
 }
+static void redis_restore_call_from_json(struct redis *r, struct callmaster *m, const redisReply *id, enum call_type type) {
+	redisReply* rr_jsonStr;
+	str callid;
+	const char *err;
+	struct call *c = NULL;
+	str s;
 
+	str_init_len(&callid, id->str, id->len);
+
+	rr_jsonStr = redis_get(r, REDIS_REPLY_STRING, "GET "PB"",callid.s);
+	if (!rr_jsonStr) {
+		rlog(LOG_ERR, "Could not retrieve json data from redis for callid: %s", id->str);
+		goto err;
+	}
+
+	c = call_get_or_create(&callid, m, type);
+	err = "failed to create call struct";
+	if (!c)
+		goto err;
+
+	JsonParser *parser = json_parser_new();
+	json_parser_load_from_data (parser, rr_jsonStr->str, -1, NULL);
+	JsonReader *root_reader = json_reader_new (json_parser_get_root (parser));
+
+	json_reader_read_member (root_reader, "globaldata");
+	JsonNode* globaldata = json_reader_get_value(root_reader);
+	json_reader_end_member (root_reader);
+
+	JsonReader* globaldata_reader = json_reader_new(globaldata);
+
+	err = "missing 'created' timestamp";
+	if (!json_reader_read_member (globaldata_reader, "created"))
+		goto err2;
+	c->created = json_reader_get_int_value(globaldata_reader);
+	json_reader_end_member (globaldata_reader);
+
+	err = "missing 'last_signal' timestamp";
+	if (!json_reader_read_member (globaldata_reader, "last_signal"))
+		goto err2;
+	c->last_signal = json_reader_get_int_value(globaldata_reader);
+	json_reader_end_member (globaldata_reader);
+
+	if (json_reader_read_member (globaldata_reader, "tos"))
+		c->tos = json_reader_get_int_value(globaldata_reader);
+	else
+		c->tos = 184;
+	json_reader_end_member (globaldata_reader);
+
+	json_reader_read_member (globaldata_reader, "deleted");
+	c->deleted = json_reader_get_int_value(globaldata_reader);
+	json_reader_end_member (globaldata_reader);
+
+	json_reader_read_member (globaldata_reader, "ml_deleted");
+	c->ml_deleted = json_reader_get_int_value(globaldata_reader);
+	json_reader_end_member (globaldata_reader);
+
+	if (json_reader_read_member (globaldata_reader, "created_from")) {
+		const char* created_from = json_reader_get_string_value(globaldata_reader);
+		c->created_from = call_strdup(c, created_from);
+	}
+	json_reader_end_member (globaldata_reader);
+
+	if (json_reader_read_member (globaldata_reader, "created_from_addr")) {
+		const char* created_from_addr = json_reader_get_string_value(globaldata_reader);
+		str_init(&s,created_from_addr);
+		sockaddr_parse_any_str(&c->created_from_addr, &s);
+	}
+	json_reader_end_member (globaldata_reader);
+
+	err = "missing 'redis_hosted_db' value";
+	if (!json_reader_read_member (globaldata_reader, "redis_hosted_db"))
+		goto err3;
+	c->redis_hosted_db = json_reader_get_int_value(globaldata_reader);
+	json_reader_end_member (globaldata_reader);
+
+
+
+
+
+err3:
+	rwlock_unlock_w(&c->master_lock);
+err2:
+	// log_info_clear();
+	if (err) {
+		rlog(LOG_WARNING, "Failed to restore call ID '%.*s' from Redis: %s", REDIS_FMT(id), err);
+		if (c) {
+			call_destroy(c);
+			obj_put(c);
+		}
+	}
+err1:
+	g_object_unref (root_reader);
+	g_object_unref (globaldata_reader);
+	g_object_unref (parser);
+
+err:
+	return;
+}
 
 static void redis_restore_call(struct redis *r, struct callmaster *m, const redisReply *id, enum call_type type) {
 	struct redis_hash call;
@@ -1699,45 +1856,35 @@ char* redis_encode_json(struct call *c) {
 
 		{
 			json_builder_set_member_name (builder, "created");
-			sprintf(tmp,"%llu",(long long unsigned) c->created);
-			json_builder_add_string_value (builder, tmp);
-			ZERO(tmp);
+			json_builder_add_int_value (builder, (long long unsigned) c->created);
+
 			json_builder_set_member_name (builder, "last_signal");
-			sprintf(tmp,"%llu",(long long unsigned) c->last_signal);
-			json_builder_add_string_value (builder, tmp);
-			ZERO(tmp);
+			json_builder_add_int_value (builder, (long long unsigned) c->last_signal);
+
 			json_builder_set_member_name (builder, "tos");
-			sprintf(tmp,"%i",(int) c->tos);
-			json_builder_add_string_value (builder, tmp);
-			ZERO(tmp);
+			json_builder_add_int_value (builder, (int) c->tos);
+
 			json_builder_set_member_name (builder, "deleted");
-			sprintf(tmp,"%llu",(long long unsigned) c->deleted);
-			json_builder_add_string_value (builder, tmp);
-			ZERO(tmp);
+			json_builder_add_int_value (builder, (long long unsigned) c->deleted);
+
 			json_builder_set_member_name (builder, "num_sfds");
-			sprintf(tmp,"%u",g_queue_get_length(&c->stream_fds));
-			json_builder_add_string_value (builder, tmp);
-			ZERO(tmp);
+			json_builder_add_int_value (builder, g_queue_get_length(&c->stream_fds));
+
 			json_builder_set_member_name (builder, "num_streams");
-			sprintf(tmp,"%u",g_queue_get_length(&c->streams));
-			json_builder_add_string_value (builder, tmp);
-			ZERO(tmp);
+			json_builder_add_int_value (builder, g_queue_get_length(&c->streams));
+
 			json_builder_set_member_name (builder, "num_medias");
-			sprintf(tmp,"%u",g_queue_get_length(&c->medias));
-			json_builder_add_string_value (builder, tmp);
-			ZERO(tmp);
+			json_builder_add_int_value (builder, g_queue_get_length(&c->medias));
+
 			json_builder_set_member_name (builder, "num_tags");
-			sprintf(tmp,"%u",g_queue_get_length(&c->monologues));
-			json_builder_add_string_value (builder, tmp);
-			ZERO(tmp);
+			json_builder_add_int_value (builder, g_queue_get_length(&c->monologues));
+
 			json_builder_set_member_name (builder, "num_maps");
-			sprintf(tmp,"%u",g_queue_get_length(&c->endpoint_maps));
-			json_builder_add_string_value (builder, tmp);
-			ZERO(tmp);
+			json_builder_add_int_value (builder, g_queue_get_length(&c->endpoint_maps));
+
 			json_builder_set_member_name (builder, "ml_deleted");
-			sprintf(tmp,"%llu",(long long unsigned) c->ml_deleted);
-			json_builder_add_string_value (builder, tmp);
-			ZERO(tmp);
+			json_builder_add_int_value (builder, (long long unsigned) c->ml_deleted);
+
 			json_builder_set_member_name (builder, "created_from");
 			sprintf(tmp,"%s",c->created_from);
 			json_builder_add_string_value (builder, tmp);
@@ -1747,13 +1894,14 @@ char* redis_encode_json(struct call *c) {
 			json_builder_add_string_value (builder, tmp);
 			ZERO(tmp);
 			json_builder_set_member_name (builder, "redis_hosted_db");
-			sprintf(tmp,"%u",c->redis_hosted_db);
-			json_builder_add_string_value (builder, tmp);
-			ZERO(tmp);
+			json_builder_add_int_value (builder, c->redis_hosted_db);
+
 		}
 
 		json_builder_end_object (builder);
 
+		json_builder_begin_object (builder);
+		json_builder_set_member_name (builder, "sdfds");
 
 		for (l = c->stream_fds.head; l; l = l->next) {
 			sfd = l->data;
@@ -1790,6 +1938,10 @@ char* redis_encode_json(struct call *c) {
 
 		} // --- for
 
+		json_builder_end_object (builder);
+
+		json_builder_begin_object (builder);
+		json_builder_set_member_name (builder, "streams");
 
 		for (l = c->streams.head; l; l = l->next) {
 			ps = l->data;
@@ -1898,6 +2050,10 @@ char* redis_encode_json(struct call *c) {
 
 		} // --- for streams.head
 
+		json_builder_end_object (builder);
+
+		json_builder_begin_object (builder);
+		json_builder_set_member_name (builder, "tags");
 
 		for (l = c->monologues.head; l; l = l->next) {
 			ml = l->data;
@@ -1964,6 +2120,10 @@ char* redis_encode_json(struct call *c) {
 
 		} // --- for monologues.head
 
+		json_builder_end_object (builder);
+
+		json_builder_begin_object (builder);
+		json_builder_set_member_name (builder, "medias");
 
 		for (l = c->medias.head; l; l = l->next) {
 			media = l->data;
@@ -2067,6 +2227,10 @@ char* redis_encode_json(struct call *c) {
 
 		} // --- for medias.head
 
+		json_builder_end_object (builder);
+
+		json_builder_begin_object (builder);
+		json_builder_set_member_name (builder, "maps");
 
 		for (l = c->endpoint_maps.head; l; l = l->next) {
 			ep = l->data;
@@ -2128,6 +2292,7 @@ char* redis_encode_json(struct call *c) {
 
 		} // --- for c->endpoint_maps.head
 
+		json_builder_end_object (builder);
 		json_builder_end_object (builder);
 	}
 	json_builder_end_object (builder);
@@ -2525,6 +2690,7 @@ void redis_delete(struct call *c, struct redis *r) {
 		goto err;
 
 	redis_delete_call(c, r);
+	redis_delete_call_json(c, r);
 
 	rwlock_unlock_r(&c->master_lock);
 	mutex_unlock(&r->lock);
