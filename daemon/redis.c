@@ -1894,6 +1894,8 @@ char* redis_encode_json(struct call *c) {
 
 		json_builder_end_object (builder);
 
+		json_builder_set_member_name (builder, "sfds");
+		json_builder_begin_object (builder);
 
 		for (l = c->stream_fds.head; l; l = l->next) {
 			sfd = l->data;
@@ -1930,6 +1932,7 @@ char* redis_encode_json(struct call *c) {
 
 		} // --- for
 
+		json_builder_end_object (builder);
 
 		for (l = c->streams.head; l; l = l->next) {
 			ps = l->data;
