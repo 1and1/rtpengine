@@ -1042,18 +1042,38 @@ static int json_sfds(JsonReader *root_reader,struct call *c, struct redis_list *
 	struct stream_fd *sfd;
 	socket_t *sock;
 	int port;
+	char** members=0;
 
-	for (i = 0; i < sfds->len; i++) {
-		rh = &sfds->rh[i];
+	json_reader_read_member (root_reader, "sfds");
+	JsonNode* sfds_node = json_reader_get_value(root_reader);
+	json_reader_end_member (root_reader);
 
-		if (redis_hash_get_int(&port, rh, "localport"))
-			return -1;
-		if (redis_hash_get_str(&family, rh, "pref_family"))
-			return -1;
-		if (redis_hash_get_str(&intf_name, rh, "logical_intf"))
-			return -1;
-		if (redis_hash_get_unsigned(&loc_uid, rh, "local_intf_uid"))
-			return -1;
+	JsonReader* sfds_reader = json_reader_new(sfds_node);
+
+	members = json_reader_list_members(sfds_reader);
+
+	for (int i=0; i < json_reader_count_members (sfds_reader); ++i) {
+
+		json_reader_read_member (sfds_reader, *members);
+		JsonNode* cur_sfd = json_reader_get_value(sfds_reader);
+		json_reader_end_member (sfds_reader);
+		JsonReader* sfd_reader = json_reader_new(cur_sfd);
+
+		json_reader_read_member (sfd_reader, "localport");
+		port = json_reader_get_int_value(sfd_reader);
+		json_reader_end_member (sfd_reader);
+
+		json_reader_read_member (sfd_reader, "pref_family");
+		str_init(family,json_reader_get_string_value(sfd_reader));
+		json_reader_end_member (sfd_reader);
+
+		json_reader_read_member (sfd_reader, "logical_intf");
+		str_init(intf_name,json_reader_get_string_value(sfd_reader));
+		json_reader_end_member (sfd_reader);
+
+		json_reader_read_member (sfd_reader, "local_intf_uid");
+		loc_uid = json_reader_get_int_value(sfd_reader);
+		json_reader_end_member (sfd_reader);
 
 		fam = get_socket_family_rfc(&family);
 		if (!fam)
@@ -1061,6 +1081,7 @@ static int json_sfds(JsonReader *root_reader,struct call *c, struct redis_list *
 		lif = get_logical_interface(&intf_name, fam, 0);
 		if (!lif)
 			return -1;
+
 		loc = g_queue_peek_nth(&lif->list, loc_uid);
 		if (!loc)
 			return -1;
@@ -1072,11 +1093,15 @@ static int json_sfds(JsonReader *root_reader,struct call *c, struct redis_list *
 			return -1;
 		sfd = stream_fd_new(sock, c, loc);
 		// XXX tos
-		if (redis_hash_get_crypto_context(&sfd->crypto, rh))
-			return -1;
+		// TODO: Crypto stuff
+//		if (redis_hash_get_crypto_context(&sfd->crypto, rh))
+//			return -1;
 
-		sfds->ptrs[i] = sfd;
+
+		++members;
+
 	}
+
 	return 0;
 }
 
@@ -1844,8 +1869,9 @@ char* redis_encode_json(struct call *c) {
 		json_builder_begin_object (builder);
 
 		{
-			sprintf(tmp,"cid-%s",STRSTR(&c->callid));
-			json_builder_set_member_name (builder, tmp);
+			json_builder_set_member_name (builder, "callid");
+			sprintf(tmp,"%s",STRSTR(&c->callid));
+			json_builder_add_string_value (builder, tmp);
 			ZERO(tmp);
 
 			json_builder_set_member_name (builder, "created");
@@ -1910,22 +1936,21 @@ char* redis_encode_json(struct call *c) {
 				sprintf(tmp,"%s",sfd->local_intf->logical->preferred_family->rfc_name);
 				json_builder_add_string_value (builder, tmp);
 				ZERO(tmp);
+
 				json_builder_set_member_name (builder, "localport");
-				sprintf(tmp,"%u",sfd->socket.local.port);
-				json_builder_add_string_value (builder, tmp);
-				ZERO(tmp);
+				json_builder_add_int_value (builder, sfd->socket.local.port);
+
 				json_builder_set_member_name (builder, "logical_intf");
 				sprintf(tmp,"%s",STRSTR(&sfd->local_intf->logical->name));
 				json_builder_add_string_value (builder, tmp);
 				ZERO(tmp);
+
 				json_builder_set_member_name (builder, "local_intf_uid");
-				sprintf(tmp,"%u",sfd->local_intf->unique_id);
-				json_builder_add_string_value (builder, tmp);
-				ZERO(tmp);
+				json_builder_add_int_value (builder, sfd->local_intf->unique_id);
+
 				json_builder_set_member_name (builder, "stream");
-				sprintf(tmp,"%u",sfd->stream->unique_id);
-				json_builder_add_string_value (builder, tmp);
-				ZERO(tmp);
+				json_builder_add_int_value (builder, sfd->stream->unique_id);
+
 			}
 			json_builder_end_object (builder);
 
@@ -2283,7 +2308,6 @@ char* redis_encode_json(struct call *c) {
 
 
 		} // --- for c->endpoint_maps.head
-		json_builder_end_object (builder);
 		json_builder_end_object (builder);
 	}
 	json_builder_end_object (builder);
