@@ -1531,9 +1531,10 @@ err1:
 		if (c) {
 			call_destroy(c);
 			obj_put(c);
+		} else {
+			if (r->role == MASTER_REDIS_ROLE || r->role == ANY_REDIS_ROLE)
+				redisCommandNR(r->ctx, "SREM calls "PB"", STR_R(id));
 		}
-		else
-			redisCommandNR(m->conf.redis_write->ctx, "SREM calls "PB"", STR_R(id));
 	}
 }
 
