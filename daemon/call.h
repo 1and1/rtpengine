@@ -5,7 +5,8 @@
 
 /* XXX split everything into call_signalling.[ch] and call_packets.[ch] or w/e */
 
-
+#include <glib-object.h>
+#include <json-glib/json-glib.h>
 
 #include <sys/types.h>
 #include <glib.h>
@@ -441,6 +442,7 @@ struct call {
 
 	int			record_call;
 	struct recording 	*recording;
+	JsonReader *root_reader;
 };
 
 struct callmaster_config {

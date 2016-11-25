@@ -751,7 +751,79 @@ static void redis_delete_call(struct call *c, struct redis *r) {
 	redis_consume(r);
 }
 
+static redisReply *createReplyObject(int type);
 
+static int json_get_hash(struct redis_hash *out, struct call* c,
+		const char *key, const redisReply *which,
+		unsigned int id)
+{
+	redisReply *k, *v;
+	int i;
+	char key_concatted[256];
+	memset(&key_concatted,0,256);
+
+	if (!c)
+		goto err;
+
+	if (id == -1) {
+		sprintf(&key_concatted, "%s-%s",key,which->str);
+	} else {
+		sprintf(&key_concatted, "%s-%s-%u",key,which->str,id);
+	}
+
+
+	json_reader_read_member (c->root_reader, &key_concatted);
+	JsonNode* sectiondata = json_reader_get_value(c->root_reader);
+	json_reader_end_member (c->root_reader);
+
+	JsonReader* sectiondata_reader = json_reader_new(sectiondata);
+
+	out->ht = g_hash_table_new(g_str_hash, g_str_equal);
+	if (!out->ht)
+		goto err;
+
+	char **members = json_reader_list_members(sectiondata_reader);
+
+	for (int i=0; i < json_reader_count_members (sectiondata_reader); ++i) {
+
+		json_reader_read_member (sectiondata_reader, *members);
+		GType type = json_reader_get_type();
+		switch (type) {
+		case G_TYPE_STRING:
+		{
+			v = createReplyObject(REDIS_REPLY_STRING);
+			v->str = json_reader_get_string_value(*members);
+			v->len = strlen(v->str);
+			break;
+		}
+		case G_TYPE_INT:
+		{
+			v = createReplyObject(REDIS_REPLY_INTEGER);
+			v->integer = json_reader_get_int_value(*members);
+			break;
+		}
+		default:
+			goto err3;
+		}
+
+		if (g_hash_table_insert_check(out->ht, *members, v) != TRUE)
+			goto err3;
+
+		json_reader_end_member(sectiondata_reader);
+
+		++members;
+	} // for
+
+
+	return 0;
+
+err3:
+	freeReplyObject(out->rr);
+err2:
+	g_hash_table_destroy(out->ht);
+err:
+	return -1;
+}
 
 
 static int redis_get_hash(struct redis_hash *out, struct redis *r, const char *key, const redisReply *which,
@@ -946,6 +1018,40 @@ static int redis_build_list(GQueue *q, struct redis *r, const char *key, const s
 {
 	return redis_build_list_cb(q, r, key, callid, idx, list, rbl_cb_simple, NULL);
 }
+
+static int json_get_list_hash(struct redis_list *out, struct call* c,
+		const char *key, const redisReply *id,
+		const struct redis_hash *rh, const char *rh_num_key)
+{
+	unsigned int i;
+
+	if (redis_hash_get_unsigned(&out->len, rh, rh_num_key))
+		return -1;
+	out->rh = malloc(sizeof(*out->rh) * out->len);
+	if (!out->rh)
+		return -1;
+	out->ptrs = malloc(sizeof(*out->ptrs) * out->len);
+	if (!out->ptrs)
+		goto err1;
+
+	for (i = 0; i < out->len; i++) {
+		if (json_get_hash(&out->rh[i], c, key, id, i))
+			goto err2;
+	}
+
+	return 0;
+
+err2:
+	free(out->ptrs);
+	while (i) {
+		i--;
+		redis_destroy_hash(&out->rh[i]);
+	}
+err1:
+	free(out->rh);
+	return -1;
+}
+
 static int redis_get_list_hash(struct redis_list *out, struct redis *r, const char *key, const redisReply *id,
 		const struct redis_hash *rh, const char *rh_num_key)
 {
@@ -1030,80 +1136,80 @@ static int redis_hash_get_crypto_context(struct crypto_context *out, const struc
 	return 0;
 }
 
-static int json_sfds(JsonReader *root_reader,struct call *c, struct redis_list *sfds) {
-	unsigned int i;
-	str family, intf_name;
-	struct redis_hash *rh;
-	sockfamily_t *fam;
-	struct logical_intf *lif;
-	struct local_intf *loc;
-	GQueue q = G_QUEUE_INIT;
-	unsigned int loc_uid;
-	struct stream_fd *sfd;
-	socket_t *sock;
-	int port;
-	char** members=0;
-
-	json_reader_read_member (root_reader, "sfds");
-	JsonNode* sfds_node = json_reader_get_value(root_reader);
-	json_reader_end_member (root_reader);
-
-	JsonReader* sfds_reader = json_reader_new(sfds_node);
-
-	members = json_reader_list_members(sfds_reader);
-
-	for (int i=0; i < json_reader_count_members (sfds_reader); ++i) {
-
-		json_reader_read_member (sfds_reader, *members);
-		JsonNode* cur_sfd = json_reader_get_value(sfds_reader);
-		json_reader_end_member (sfds_reader);
-		JsonReader* sfd_reader = json_reader_new(cur_sfd);
-
-		json_reader_read_member (sfd_reader, "localport");
-		port = json_reader_get_int_value(sfd_reader);
-		json_reader_end_member (sfd_reader);
-
-		json_reader_read_member (sfd_reader, "pref_family");
-		str_init(family,json_reader_get_string_value(sfd_reader));
-		json_reader_end_member (sfd_reader);
-
-		json_reader_read_member (sfd_reader, "logical_intf");
-		str_init(intf_name,json_reader_get_string_value(sfd_reader));
-		json_reader_end_member (sfd_reader);
-
-		json_reader_read_member (sfd_reader, "local_intf_uid");
-		loc_uid = json_reader_get_int_value(sfd_reader);
-		json_reader_end_member (sfd_reader);
-
-		fam = get_socket_family_rfc(&family);
-		if (!fam)
-			return -1;
-		lif = get_logical_interface(&intf_name, fam, 0);
-		if (!lif)
-			return -1;
-
-		loc = g_queue_peek_nth(&lif->list, loc_uid);
-		if (!loc)
-			return -1;
-
-		if (__get_consecutive_ports(&q, 1, port, loc->spec))
-			return -1;
-		sock = g_queue_pop_head(&q);
-		if (!sock)
-			return -1;
-		sfd = stream_fd_new(sock, c, loc);
-		// XXX tos
-		// TODO: Crypto stuff
-//		if (redis_hash_get_crypto_context(&sfd->crypto, rh))
+//static int json_sfds(JsonReader *root_reader,struct call *c, struct redis_list *sfds) {
+//	unsigned int i;
+//	str family, intf_name;
+//	struct redis_hash *rh;
+//	sockfamily_t *fam;
+//	struct logical_intf *lif;
+//	struct local_intf *loc;
+//	GQueue q = G_QUEUE_INIT;
+//	unsigned int loc_uid;
+//	struct stream_fd *sfd;
+//	socket_t *sock;
+//	int port;
+//	char** members=0;
+//
+//	json_reader_read_member (root_reader, "sfds");
+//	JsonNode* sfds_node = json_reader_get_value(root_reader);
+//	json_reader_end_member (root_reader);
+//
+//	JsonReader* sfds_reader = json_reader_new(sfds_node);
+//
+//	members = json_reader_list_members(sfds_reader);
+//
+//	for (int i=0; i < json_reader_count_members (sfds_reader); ++i) {
+//
+//		json_reader_read_member (sfds_reader, *members);
+//		JsonNode* cur_sfd = json_reader_get_value(sfds_reader);
+//		json_reader_end_member (sfds_reader);
+//		JsonReader* sfd_reader = json_reader_new(cur_sfd);
+//
+//		json_reader_read_member (sfd_reader, "localport");
+//		port = json_reader_get_int_value(sfd_reader);
+//		json_reader_end_member (sfd_reader);
+//
+//		json_reader_read_member (sfd_reader, "pref_family");
+//		str_init(family,json_reader_get_string_value(sfd_reader));
+//		json_reader_end_member (sfd_reader);
+//
+//		json_reader_read_member (sfd_reader, "logical_intf");
+//		str_init(intf_name,json_reader_get_string_value(sfd_reader));
+//		json_reader_end_member (sfd_reader);
+//
+//		json_reader_read_member (sfd_reader, "local_intf_uid");
+//		loc_uid = json_reader_get_int_value(sfd_reader);
+//		json_reader_end_member (sfd_reader);
+//
+//		fam = get_socket_family_rfc(&family);
+//		if (!fam)
 //			return -1;
-
-
-		++members;
-
-	}
-
-	return 0;
-}
+//		lif = get_logical_interface(&intf_name, fam, 0);
+//		if (!lif)
+//			return -1;
+//
+//		loc = g_queue_peek_nth(&lif->list, loc_uid);
+//		if (!loc)
+//			return -1;
+//
+//		if (__get_consecutive_ports(&q, 1, port, loc->spec))
+//			return -1;
+//		sock = g_queue_pop_head(&q);
+//		if (!sock)
+//			return -1;
+//		sfd = stream_fd_new(sock, c, loc);
+//		// XXX tos
+//		// TODO: Crypto stuff
+////		if (redis_hash_get_crypto_context(&sfd->crypto, rh))
+////			return -1;
+//
+//
+//		++members;
+//
+//	}
+//
+//	return 0;
+//}
 
 static int redis_sfds(struct call *c, struct redis_list *sfds) {
 	unsigned int i;
@@ -1459,7 +1565,7 @@ static int redis_link_maps(struct redis *r, struct call *c, struct redis_list *m
 	}
 	return 0;
 }
-static void redis_restore_call_from_json(struct redis *r, struct callmaster *m, const redisReply *id, enum call_type type) {
+static void redis_restore_call_from_json_old(struct redis *r, struct callmaster *m, const redisReply *id, enum call_type type) {
 	redisReply* rr_jsonStr;
 	str callid;
 	const char *err;
@@ -1556,6 +1662,141 @@ err1:
 
 err:
 	return;
+}
+
+static void redis_restore_call_from_json(struct redis *r, struct callmaster *m, const redisReply *id, enum call_type type) {
+	redisReply* rr_jsonStr;
+	struct redis_hash call;
+	struct redis_list tags, sfds, streams, medias, maps;
+	struct call *c = NULL;
+	str s,callid ;
+	const char *err;
+	int i;
+
+	str_init_len(&callid, id->str, id->len);
+
+	rr_jsonStr = redis_get(r, REDIS_REPLY_STRING, "GET "PB"",callid.s);
+	if (!rr_jsonStr) {
+		rlog(LOG_ERR, "Could not retrieve json data from redis for callid: %s", id->str);
+		goto err1;
+	}
+
+	str_init_len(&s, id->str, id->len);
+	//s.s = id->str;
+	//s.len = id->len;
+	c = call_get_or_create(&s, m, type);
+	err = "failed to create call struct";
+	if (!c)
+		goto err8;
+
+	JsonParser *parser = json_parser_new();
+	json_parser_load_from_data (parser, rr_jsonStr->str, -1, NULL);
+	JsonReader *root_reader = json_reader_new (json_parser_get_root (parser));
+
+	c->root_reader = root_reader; // attach the json to the call in order to restore data from there
+
+	err = "'call' data incomplete";
+	if (json_get_hash(&call, c, "globaldata", id, -1))
+		goto err1;
+	err = "'tags' incomplete";
+	if (json_get_list_hash(&tags, c, "tag", id, &call, "num_tags"))
+		goto err2;
+	err = "'sfds' incomplete";
+	if (json_get_list_hash(&sfds, c, "sfd", id, &call, "num_sfds"))
+		goto err3;
+	err = "'streams' incomplete";
+	if (json_get_list_hash(&streams, c, "stream", id, &call, "num_streams"))
+		goto err4;
+	err = "'medias' incomplete";
+	if (json_get_list_hash(&medias, c, "media", id, &call, "num_medias"))
+		goto err5;
+	err = "'maps' incomplete";
+	if (json_get_list_hash(&maps, c, "map", id, &call, "num_maps"))
+		goto err7;
+
+
+
+	err = "missing 'created' timestamp";
+	if (redis_hash_get_time_t(&c->created, &call, "created"))
+		goto err6;
+	err = "missing 'last signal' timestamp";
+	if (redis_hash_get_time_t(&c->last_signal, &call, "last_signal"))
+		goto err6;
+	if (redis_hash_get_int(&i, &call, "tos"))
+		c->tos = 184;
+	else
+		c->tos = i;
+	redis_hash_get_time_t(&c->deleted, &call, "deleted");
+	redis_hash_get_time_t(&c->ml_deleted, &call, "ml_deleted");
+	if (!redis_hash_get_str(&s, &call, "created_from"))
+		c->created_from = call_strdup(c, s.s);
+	if (!redis_hash_get_str(&s, &call, "created_from_addr"))
+		sockaddr_parse_any_str(&c->created_from_addr, &s);
+
+	err = "missing 'redis_hosted_db' value";
+	if (redis_hash_get_unsigned((unsigned int *) &c->redis_hosted_db, &call, "redis_hosted_db"))
+		goto err6;
+
+	err = "failed to create sfds";
+	if (redis_sfds(c, &sfds))
+		goto err6;
+	err = "failed to create streams";
+	if (redis_streams(c, &streams))
+		goto err6;
+	err = "failed to create tags";
+	if (redis_tags(c, &tags))
+		goto err6;
+	err = "failed to create medias";
+	if (redis_medias(r, c, &medias))
+		goto err6;
+	err = "failed to create maps";
+	if (redis_maps(c, &maps))
+		goto err6;
+
+	err = "failed to link sfds";
+	if (redis_link_sfds(&sfds, &streams))
+		goto err6;
+	err = "failed to link streams";
+	if (redis_link_streams(r, c, &streams, &sfds, &medias))
+		goto err6;
+	err = "failed to link tags";
+	if (redis_link_tags(r, c, &tags, &medias))
+		goto err6;
+	err = "failed to link medias";
+	if (redis_link_medias(r, c, &medias, &streams, &maps, &tags))
+		goto err6;
+	err = "failed to link maps";
+	if (redis_link_maps(r, c, &maps, &sfds))
+		goto err6;
+
+	err = NULL;
+	obj_put(c);
+
+err6:
+	rwlock_unlock_w(&c->master_lock);
+err8:
+	redis_destroy_list(&maps);
+err7:
+	redis_destroy_list(&medias);
+err5:
+	redis_destroy_list(&streams);
+err4:
+	redis_destroy_list(&sfds);
+err3:
+	redis_destroy_list(&tags);
+err2:
+	redis_destroy_hash(&call);
+err1:
+	log_info_clear();
+	if (err) {
+		rlog(LOG_WARNING, "Failed to restore call ID '%.*s' from Redis: %s", REDIS_FMT(id), err);
+		if (c) {
+			call_destroy(c);
+			obj_put(c);
+		}
+		else
+			redisCommandNR(m->conf.redis_write->ctx, "SREM calls "PB"", STR_R(id));
+	}
 }
 
 static void redis_restore_call(struct redis *r, struct callmaster *m, const redisReply *id, enum call_type type) {
@@ -1864,16 +2105,13 @@ char* redis_encode_json(struct call *c) {
 
 	json_builder_begin_object (builder);
 	{
-		json_builder_set_member_name (builder, "globaldata");
+		sprintf(tmp,"call-%s",STRSTR(&c->callid));
+		json_builder_set_member_name (builder, tmp);
+		ZERO(tmp);
 
 		json_builder_begin_object (builder);
 
 		{
-			json_builder_set_member_name (builder, "callid");
-			sprintf(tmp,"%s",STRSTR(&c->callid));
-			json_builder_add_string_value (builder, tmp);
-			ZERO(tmp);
-
 			json_builder_set_member_name (builder, "created");
 			json_builder_add_int_value (builder, (long long unsigned) c->created);
 
@@ -1919,9 +2157,6 @@ char* redis_encode_json(struct call *c) {
 
 		json_builder_end_object (builder);
 
-		json_builder_set_member_name (builder, "sfds");
-		json_builder_begin_object (builder);
-
 		for (l = c->stream_fds.head; l; l = l->next) {
 			sfd = l->data;
 
@@ -1955,11 +2190,6 @@ char* redis_encode_json(struct call *c) {
 			json_builder_end_object (builder);
 
 		} // --- for
-
-		json_builder_end_object (builder);
-
-		json_builder_set_member_name (builder, "streams");
-		json_builder_begin_object (builder);
 
 		for (l = c->streams.head; l; l = l->next) {
 			ps = l->data;
@@ -2068,11 +2298,6 @@ char* redis_encode_json(struct call *c) {
 
 		} // --- for streams.head
 
-		json_builder_end_object (builder);
-
-		json_builder_set_member_name (builder, "tags");
-		json_builder_begin_object (builder);
-
 		for (l = c->monologues.head; l; l = l->next) {
 			ml = l->data;
 
@@ -2137,11 +2362,6 @@ char* redis_encode_json(struct call *c) {
 
 
 		} // --- for monologues.head
-
-		json_builder_end_object (builder);
-
-		json_builder_set_member_name (builder, "medias");
-		json_builder_begin_object (builder);
 
 		for (l = c->medias.head; l; l = l->next) {
 			media = l->data;
@@ -2244,10 +2464,6 @@ char* redis_encode_json(struct call *c) {
 			json_builder_end_object (builder);
 
 		} // --- for medias.head
-		json_builder_end_object (builder);
-
-		json_builder_set_member_name (builder, "maps");
-		json_builder_begin_object (builder);
 
 		for (l = c->endpoint_maps.head; l; l = l->next) {
 			ep = l->data;
@@ -2305,10 +2521,8 @@ char* redis_encode_json(struct call *c) {
 			}
 			json_builder_end_object (builder);
 
-
-
 		} // --- for c->endpoint_maps.head
-		json_builder_end_object (builder);
+
 	}
 	json_builder_end_object (builder);
 
