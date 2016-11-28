@@ -1628,6 +1628,7 @@ static void json_restore_call(struct redis *r, struct callmaster *m, redisReply 
 	str s ;
 	const char *err;
 	int i;
+	g_type_init();
 	JsonReader *root_reader =0;
 	JsonParser *parser =0;
 
