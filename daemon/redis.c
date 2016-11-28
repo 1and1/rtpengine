@@ -1656,9 +1656,13 @@ static void json_restore_call(struct redis *r, struct callmaster *m, redisReply 
 		goto err1;
 
 	parser = json_parser_new();
-	json_parser_load_from_data (parser, rr_jsonStr->str, -1, NULL);
+	if (!json_parser_load_from_data (parser, rr_jsonStr->str, -1, NULL)) {
+		rlog(LOG_DEBUG, "Could not parse json data !");
+	}
 	root_reader = json_reader_new (json_parser_get_root (parser));
-
+	if (!root_reader) {
+		rlog(LOG_DEBUG, "Could not read json data !");
+	}
 	c->root_reader = root_reader; // attach the json to the call in order to restore data from there
 
 	err = "'call' data incomplete";
