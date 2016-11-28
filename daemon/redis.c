@@ -1631,6 +1631,8 @@ static void json_restore_call(struct redis *r, struct callmaster *m, redisReply 
 	JsonReader *root_reader =0;
 	JsonParser *parser =0;
 
+	str_init_len(&callid, id->str, id->len);
+
 	// strip off json- prefix from callid
 	int newlen = (id->len)-strlen("json-");
 	char* tmp = (char*)malloc(newlen);
@@ -1641,7 +1643,7 @@ static void json_restore_call(struct redis *r, struct callmaster *m, redisReply 
 
 	rlog(LOG_DEBUG, "Processing call ID '%s' from Redis", id->str);
 
-	str_init_len(&callid, id->str, id->len);
+
 
 	rr_jsonStr = redis_get(r, REDIS_REPLY_STRING, "GET "PB"",callid.s);
 	if (!rr_jsonStr) {
@@ -1649,9 +1651,6 @@ static void json_restore_call(struct redis *r, struct callmaster *m, redisReply 
 		goto err1;
 	}
 
-	str_init_len(&s, id->str, id->len);
-	//s.s = id->str;
-	//s.len = id->len;
 	c = call_get_or_create(&s, m, type);
 	err = "failed to create call struct";
 	if (!c)
