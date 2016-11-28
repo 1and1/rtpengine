@@ -2262,6 +2262,8 @@ char* redis_encode_json(struct call *c) {
 			json_builder_end_object (builder);
 
 			// stream_sfds was here before
+			mutex_unlock(&ps->in_lock);
+			mutex_unlock(&ps->out_lock);
 
 		} // --- for streams.head
 
