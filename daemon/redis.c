@@ -753,6 +753,16 @@ static void redis_delete_call(struct call *c, struct redis *r) {
 
 // stolen from libhiredis
 extern redisReply *createReplyObject(int type);
+/* Create a reply object */
+inline redisReply *createReplyObject(int type) {
+    redisReply *r = calloc(1,sizeof(*r));
+
+    if (r == NULL)
+        return NULL;
+
+    r->type = type;
+    return r;
+}
 
 static int json_get_hash(struct redis_hash *out, struct call* c,
 		const char *key, const redisReply *which,
