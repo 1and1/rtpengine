@@ -2584,8 +2584,8 @@ void redis_update_onekey(struct call *c, struct redis *r) {
 
 	char* result = redis_encode_json(c);
 
-	redis_pipe(r, "SET cid-"PB" %s", STR(&c->callid), result);
-	redis_pipe(r, "EXPIRE cid-"PB" %i", STR(&c->callid), redis_expires_s);
+	redis_pipe(r, "SET json-"PB" %s", STR(&c->callid), result);
+	redis_pipe(r, "EXPIRE json-"PB" %i", STR(&c->callid), redis_expires_s);
 
 	redis_consume(r);
 
