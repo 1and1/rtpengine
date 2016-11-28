@@ -782,7 +782,9 @@ static int json_get_hash(struct redis_hash *out, struct call* c,
 	}
 
 
-	json_reader_read_member (c->root_reader, key_concatted);
+	if (!json_reader_read_member (c->root_reader, key_concatted)) {
+		rlog(LOG_ERROR, "Could not read json member: %s",key_concatted);
+	}
 	JsonNode* sectiondata = json_reader_get_value(c->root_reader);
 	json_reader_end_member (c->root_reader);
 
@@ -1666,7 +1668,7 @@ static void json_restore_call(struct redis *r, struct callmaster *m, redisReply 
 	c->root_reader = root_reader; // attach the json to the call in order to restore data from there
 
 	err = "'call' data incomplete";
-	if (json_get_hash(&call, c, "globaldata", id, -1))
+	if (json_get_hash(&call, c, "call", id, -1))
 		goto err1;
 	err = "'tags' incomplete";
 	if (json_get_list_hash(&tags, c, "tag", id, &call, "num_tags"))
@@ -2087,7 +2089,7 @@ char* redis_encode_json(struct call *c) {
 
 	json_builder_begin_object (builder);
 	{
-		sprintf(tmp,"json-%s",STRSTR(&c->callid));
+		sprintf(tmp,"call-%s",STRSTR(&c->callid));
 		json_builder_set_member_name (builder, tmp);
 		ZERO(tmp);
 
