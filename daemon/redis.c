@@ -1645,8 +1645,8 @@ static void json_restore_call(struct redis *r, struct callmaster *m, redisReply 
 
 	// strip off json- prefix from callid
 	int newlen = (id->len)-strlen("json-");
-	char* tmp = (char*)malloc(newlen);
-	memcpy(tmp,(id->str)+strlen("json-"),newlen);
+	char* tmp = (char*)malloc(newlen+1);
+	memcpy(tmp,(id->str)+strlen("json-"),newlen+1);
 	free(id->str);
 	id->str = tmp;
 	id->len = newlen;
