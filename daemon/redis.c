@@ -1639,6 +1639,8 @@ static void json_restore_call(struct redis *r, struct callmaster *m, redisReply 
 	id->str = tmp;
 	id->len = newlen;
 
+	rlog(LOG_DEBUG, "Processing call ID '%s' from Redis", id->str);
+
 	str_init_len(&callid, id->str, id->len);
 
 	rr_jsonStr = redis_get(r, REDIS_REPLY_STRING, "GET "PB"",callid.s);
