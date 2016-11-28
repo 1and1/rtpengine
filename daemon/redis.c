@@ -1668,7 +1668,7 @@ static void json_restore_call(struct redis *r, struct callmaster *m, redisReply 
 	c->root_reader = root_reader; // attach the json to the call in order to restore data from there
 
 	err = "'call' data incomplete";
-	if (json_get_hash(&call, c, "call", id, -1))
+	if (json_get_hash(&call, c, "json", id, -1))
 		goto err1;
 	err = "'tags' incomplete";
 	if (json_get_list_hash(&tags, c, "tag", id, &call, "num_tags"))
