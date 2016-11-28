@@ -1651,6 +1651,7 @@ static void json_restore_call(struct redis *r, struct callmaster *m, redisReply 
 		goto err1;
 	}
 
+	str_init_len(&s, id->str, id->len);
 	c = call_get_or_create(&s, m, type);
 	err = "failed to create call struct";
 	if (!c)
