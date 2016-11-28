@@ -1625,17 +1625,15 @@ static void json_restore_call(struct redis *r, struct callmaster *m, redisReply 
 	struct redis_hash call;
 	struct redis_list tags, sfds, streams, medias, maps;
 	struct call *c = NULL;
-	str s,callid ;
+	str s ;
 	const char *err;
 	int i;
 	JsonReader *root_reader =0;
 	JsonParser *parser =0;
 
-	str_init_len(&callid, id->str, id->len);
+	rlog(LOG_DEBUG, "Processing call ID '%s' from Redis", id->str);
 
-	rlog(LOG_DEBUG, "Processing call ID '%s' from Redis", callid.s);
-
-	rr_jsonStr = redis_get(r, REDIS_REPLY_STRING, "GET "PB"",callid.s);
+	rr_jsonStr = redis_get(r, REDIS_REPLY_STRING, "GET %s",id->str);
 	if (!rr_jsonStr) {
 		rlog(LOG_ERR, "Could not retrieve json data from redis for callid: %s", id->str);
 		goto err1;
