@@ -726,7 +726,7 @@ static void redis_delete_list(struct redis *r, const str *callid, const char *pr
 
 /* called with r->lock held and c->master_lock held */
 static void redis_delete_call_json(struct call *c, struct redis *r) {
-	redis_pipe(r, "DEL cid-"PB"", STR(&c->callid));
+	redis_pipe(r, "DEL json-"PB"", STR(&c->callid));
 	redis_consume(r);
 }
 
@@ -772,7 +772,6 @@ static int json_get_hash(struct redis_hash *out, struct call* c,
 	char key_concatted[256];
 	memset(key_concatted,0,256);
 
-			rlog(LOG_ERROR, ">>>>>>> MARKER >>>>>>");
 	if (!c)
 		goto err;
 
@@ -790,6 +789,7 @@ static int json_get_hash(struct redis_hash *out, struct call* c,
 	out->ht = g_hash_table_new(g_str_hash, g_str_equal);
 	if (!out->ht)
 		goto err;
+	out->rr = 0;
 
 	char **members = json_reader_list_members(c->root_reader);
 
@@ -797,7 +797,11 @@ static int json_get_hash(struct redis_hash *out, struct call* c,
 
 		json_reader_read_member (c->root_reader, *members);
 			v = createReplyObject(REDIS_REPLY_STRING);
+			//v->str = malloc(strlen((char*)json_reader_get_string_value(c->root_reader))+1);
+			//memset(v->str,0,strlen((char*)json_reader_get_string_value(c->root_reader))+1);
+			//memcpy(v->str,(char*)json_reader_get_string_value(c->root_reader),strlen((char*)json_reader_get_string_value(c->root_reader)));
 			v->str = (char*)json_reader_get_string_value(c->root_reader);
+			rlog(LOG_DEBUG,"Address: %p", v->str);
 			v->len = strlen(v->str);
 
 		rlog(LOG_DEBUG,"topkey: %s -> k:%s - v:%s", key_concatted, *members, v->str);
@@ -859,6 +863,8 @@ err:
 
 
 static void redis_destroy_hash(struct redis_hash *rh) {
+	
+	rlog(LOG_DEBUG,"Address rh->rr: %p", rh->rr);
 	freeReplyObject(rh->rr);
 	g_hash_table_destroy(rh->ht);
 }
@@ -989,14 +995,15 @@ static int json_build_list_cb(GQueue *q, struct call *c, const char *key, const 
 	json_reader_read_member (c->root_reader, key_concatted);
 	for (int jidx=0; jidx < json_reader_count_elements(c->root_reader); ++jidx) {
 		json_reader_read_element(c->root_reader,jidx);
-		if (json_reader_get_type() != G_TYPE_STRING) {
-			return -1;
-		}
+	//	if (json_reader_get_type() != G_TYPE_STRING) {
+	//		return -1;
+	//	}
 		const char* value = json_reader_get_string_value(c->root_reader);
 		str_init_len(&s, (char*)value , strlen(value));
 		if (cb(&s, q, list, ptr)) {
 			return -1;
 		}
+		json_reader_end_element(c->root_reader);
 	}
 	json_reader_end_member (c->root_reader);
 
@@ -1052,6 +1059,7 @@ static int json_get_list_hash(struct redis_list *out, struct call* c,
 	if (redis_hash_get_unsigned(&out->len, rh, rh_num_key))
 		return -1;
 	out->rh = malloc(sizeof(*out->rh) * out->len);
+	memset(out->rh,0,sizeof(*out->rh) * out->len);
 	if (!out->rh)
 		return -1;
 	out->ptrs = malloc(sizeof(*out->ptrs) * out->len);
@@ -1671,59 +1679,77 @@ static void json_restore_call(struct redis *r, struct callmaster *m, redisReply 
 		goto err7;
 
 
+			rlog(LOG_ERROR, ">>>>>>> MARKER >>>>>>");
 
 	err = "missing 'created' timestamp";
 	if (redis_hash_get_time_t(&c->created, &call, "created"))
 		goto err6;
+			rlog(LOG_ERROR, ">>>>>>> MARKER >>>>>>");
 	err = "missing 'last signal' timestamp";
 	if (redis_hash_get_time_t(&c->last_signal, &call, "last_signal"))
 		goto err6;
+			rlog(LOG_ERROR, ">>>>>>> MARKER >>>>>>");
 	if (redis_hash_get_int(&i, &call, "tos"))
 		c->tos = 184;
 	else
 		c->tos = i;
 	redis_hash_get_time_t(&c->deleted, &call, "deleted");
+			rlog(LOG_ERROR, ">>>>>>> MARKER >>>>>>");
 	redis_hash_get_time_t(&c->ml_deleted, &call, "ml_deleted");
+			rlog(LOG_ERROR, ">>>>>>> MARKER >>>>>>");
 	if (!redis_hash_get_str(&s, &call, "created_from"))
 		c->created_from = call_strdup(c, s.s);
+			rlog(LOG_ERROR, ">>>>>>> MARKER >>>>>>");
 	if (!redis_hash_get_str(&s, &call, "created_from_addr"))
 		sockaddr_parse_any_str(&c->created_from_addr, &s);
+			rlog(LOG_ERROR, ">>>>>>> MARKER >>>>>>");
 
 	err = "missing 'redis_hosted_db' value";
 	if (redis_hash_get_unsigned((unsigned int *) &c->redis_hosted_db, &call, "redis_hosted_db"))
 		goto err6;
 
+			rlog(LOG_ERROR, ">>>>>>> MARKER >>>>>>");
 	err = "failed to create sfds";
 	if (redis_sfds(c, &sfds))
 		goto err6;
+			rlog(LOG_ERROR, ">>>>>>> MARKER >>>>>>");
 	err = "failed to create streams";
 	if (redis_streams(c, &streams))
 		goto err6;
+			rlog(LOG_ERROR, ">>>>>>> MARKER >>>>>>");
 	err = "failed to create tags";
 	if (redis_tags(c, &tags))
 		goto err6;
+			rlog(LOG_ERROR, ">>>>>>> MARKER >>>>>>");
 	err = "failed to create medias";
 	if (redis_medias(r, c, &medias))
 		goto err6;
+			rlog(LOG_ERROR, ">>>>>>> MARKER >>>>>>");
 	err = "failed to create maps";
 	if (redis_maps(c, &maps))
 		goto err6;
+			rlog(LOG_ERROR, ">>>>>>> MARKER >>>>>>");
 
 	err = "failed to link sfds";
 	if (redis_link_sfds(&sfds, &streams))
 		goto err6;
+			rlog(LOG_ERROR, ">>>>>>> MARKER >>>>>>");
 	err = "failed to link streams";
 	if (redis_link_streams(r, c, &streams, &sfds, &medias))
 		goto err6;
+			rlog(LOG_ERROR, ">>>>>>> MARKER >>>>>>");
 	err = "failed to link tags";
 	if (redis_link_tags(r, c, &tags, &medias))
 		goto err6;
+			rlog(LOG_ERROR, ">>>>>>> MARKER >>>>>>");
 	err = "failed to link medias";
 	if (redis_link_medias(r, c, &medias, &streams, &maps, &tags))
 		goto err6;
+			rlog(LOG_ERROR, ">>>>>>> MARKER >>>>>>");
 	err = "failed to link maps";
 	if (json_link_maps(r, c, &maps, &sfds))
 		goto err6;
+			rlog(LOG_ERROR, ">>>>>>> MARKER >>>>>>");
 
 	err = NULL;
 	obj_put(c);
@@ -2073,7 +2099,7 @@ char* redis_encode_json(struct call *c) {
 
 	json_builder_begin_object (builder);
 	{
-		sprintf(tmp,"call-%s",STRSTR(&c->callid));
+		sprintf(tmp,"json-%s",STRSTR(&c->callid));
 		json_builder_set_member_name (builder, tmp);
 		ZERO(tmp);
 
