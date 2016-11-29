@@ -786,9 +786,6 @@ static int json_get_hash(struct redis_hash *out, struct call* c,
 	if (!json_reader_read_member (c->root_reader, key_concatted)) {
 		rlog(LOG_ERROR, "Could not read json member: %s",key_concatted);
 	}
-//	JsonNode* sectiondata = json_reader_get_value(c->root_reader);
-
-//	JsonReader* sectiondata_reader = json_reader_new(sectiondata);
 
 	out->ht = g_hash_table_new(g_str_hash, g_str_equal);
 	if (!out->ht)
@@ -799,28 +796,11 @@ static int json_get_hash(struct redis_hash *out, struct call* c,
 	for (int i=0; i < json_reader_count_members (c->root_reader); ++i) {
 
 		json_reader_read_member (c->root_reader, *members);
-	//	GType type = json_reader_get_type();
-//		switch (type) {
-//		case G_TYPE_STRING:
-//		{
-//		rlog(LOG_ERROR, ">>>>>>> MARKER >>>>>>");
 			v = createReplyObject(REDIS_REPLY_STRING);
 			v->str = (char*)json_reader_get_string_value(c->root_reader);
 			v->len = strlen(v->str);
-//			break;
-//		}
-//		case G_TYPE_INT:
-//		{
-//		rlog(LOG_ERROR, ">>>>>>> MARKER >>>>>>");
-//			v = createReplyObject(REDIS_REPLY_INTEGER);
-//			v->integer = json_reader_get_int_value(c->root_reader);
-//			break;
-//		}
-//		default:
-//			goto err3;
-//		}
 
-		rlog(LOG_DEBUG,"k:%s - v:%s", *members, v->str);
+		rlog(LOG_DEBUG,"topkey: %s -> k:%s - v:%s", key_concatted, *members, v->str);
 		if (g_hash_table_insert_check(out->ht, *members, v) != TRUE) {
 			goto err3;
 		}
