@@ -785,33 +785,32 @@ static int json_get_hash(struct redis_hash *out, struct call* c,
 	if (!json_reader_read_member (c->root_reader, key_concatted)) {
 		rlog(LOG_ERROR, "Could not read json member: %s",key_concatted);
 	}
-	JsonNode* sectiondata = json_reader_get_value(c->root_reader);
-	json_reader_end_member (c->root_reader);
+//	JsonNode* sectiondata = json_reader_get_value(c->root_reader);
 
-	JsonReader* sectiondata_reader = json_reader_new(sectiondata);
+//	JsonReader* sectiondata_reader = json_reader_new(sectiondata);
 
 	out->ht = g_hash_table_new(g_str_hash, g_str_equal);
 	if (!out->ht)
 		goto err;
 
-	char **members = json_reader_list_members(sectiondata_reader);
+	char **members = json_reader_list_members(c->root_reader);
 
-	for (int i=0; i < json_reader_count_members (sectiondata_reader); ++i) {
+	for (int i=0; i < json_reader_count_members (c->root_reader); ++i) {
 
-		json_reader_read_member (sectiondata_reader, *members);
+		json_reader_read_member (c->root_reader, *members);
 		GType type = json_reader_get_type();
 		switch (type) {
 		case G_TYPE_STRING:
 		{
 			v = createReplyObject(REDIS_REPLY_STRING);
-			v->str = (char*)json_reader_get_string_value(sectiondata_reader);
+			v->str = (char*)json_reader_get_string_value(c->root_reader);
 			v->len = strlen(v->str);
 			break;
 		}
 		case G_TYPE_INT:
 		{
 			v = createReplyObject(REDIS_REPLY_INTEGER);
-			v->integer = json_reader_get_int_value(sectiondata_reader);
+			v->integer = json_reader_get_int_value(c->root_reader);
 			break;
 		}
 		default:
@@ -821,10 +820,11 @@ static int json_get_hash(struct redis_hash *out, struct call* c,
 		if (g_hash_table_insert_check(out->ht, *members, v) != TRUE)
 			goto err3;
 
-		json_reader_end_member(sectiondata_reader);
+//		json_reader_end_member(sectiondata_reader);
 
 		++members;
 	} // for
+	json_reader_end_member (c->root_reader);
 
 
 	return 0;
