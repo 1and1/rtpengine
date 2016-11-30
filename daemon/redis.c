@@ -346,7 +346,7 @@ void onRedisNotification(redisAsyncContext *actx, void *reply, void *privdata) {
             }
             call_destroy(c);
 		}
-		redis_restore_call(r, cm, rr->element[2], CT_FOREIGN_CALL);
+		//redis_restore_call(r, cm, rr->element[2], CT_FOREIGN_CALL);
 	}
 
 	if (strncmp(rr->element[3]->str,"del",3)==0) {
@@ -2991,7 +2991,7 @@ void redis_delete(struct call *c, struct redis *r) {
 	if (redisCommandNR(r->ctx, "SELECT %i", c->redis_hosted_db))
 		goto err;
 
-	redis_delete_call(c, r);
+	//redis_delete_call(c, r);
 	redis_delete_call_json(c, r);
 
 	rwlock_unlock_r(&c->master_lock);

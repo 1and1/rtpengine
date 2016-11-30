@@ -587,7 +587,7 @@ static void callmaster_timer(void *ptr) {
 		rwlock_unlock_r(&sfd->call->master_lock);
 
 		if (update) {
-			redis_update(ps->call, m->conf.redis_write);
+			// redis_update(ps->call, m->conf.redis_write);
 			redis_update_onekey(ps->call, m->conf.redis_write);
 		}
 
