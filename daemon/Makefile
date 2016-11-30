@@ -75,7 +75,7 @@ OBJS=		$(SRCS:.c=.o)
 .PHONY:		all dep clean tests debug
 
 all:
-	$(MAKE) rtpengine
+	$(MAKE) DBG=yes rtpengine
 
 debug:
 	$(MAKE) DBG=yes all
