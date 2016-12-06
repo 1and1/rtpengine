@@ -621,7 +621,84 @@ static void free_port(socket_t *r, struct intf_spec *spec) {
 	g_slice_free1(sizeof(*r), r);
 }
 
+/////////////////////////////////////////////
+inline void free_set(struct port_pool pp, int start_port, int num_ports) {
+    int i;
+    for (i=0; i<num_ports; i++)
+        bit_array_clear(pp->ports_used, start_port+i);
+}
 
+
+/* TBD: write entire function, compile, messages, error cases */
+//open_sockets(unsigned int start_port, int num_ports, struct intf_spec *spec, GList *ports);
+//inline int find_first_consec_ports(struct port_pool pp, int start_port, int stop_port, int num_ports, int *first_port ) {
+
+#define PORTS_STILL_AVAILABLE   0
+#define PORTS_NOT_AVAILABLE     1
+
+inline int find_first_consec_ports(struct port_pool pp, int start_port, int stop_port, int num_ports, int *first_port ) {
+    int j;
+    int starting_port;
+    int crt_port;
+    int  count = 0;
+
+    while (count != num_ports && crt_port <= stop_port ) {
+        if (bit_array_set(pp->ports_used, crt_port)) {
+            __C_DBG("port %d in use", port);
+            free_set(pp->ports_used, start_port, count);
+
+            count = 0;
+            crt_port++;
+            continue;
+        }
+        count++; crt_port++;
+    }
+
+    /* we don't have the ports */
+    if (count != num_ports)
+        return PORTS_NOT_AVAILABLE;
+
+    *first_port = crt_port - num_ports;
+    return PORTS_STILL_AVAILABLE;
+}
+
+/* XXX family specific? unify? */
+static inline int open_sockets(unsigned int start_port, int num_ports, struct intf_spec *spec, GList *ports) {
+    int i, ret;
+    socket_t *sk, *tmp_sk;
+    GList *l, *tmp_l;
+
+    /* TODO: all ports allocated; one port fails */
+    for (l = ports; l != NULL; l = l->next) {
+        sk = l->data;
+
+        ret = get_port6(sk, start_port + i, spec);
+        /* one port fails */
+        if (ret) {
+            __C_DBG("couldn't open port %d", port);
+
+            /* TODO: what if release_port fails
+             * test: ports has 0,1,numerous elems */
+            for (tmp_l = ports; tmp_l != l; tmp_l = tmp_l->next) {
+                tmp_sk = tmp_l->data;
+                release_port(tmp_sk, spec);
+            }
+
+            for (; tmp_l != NULL; tmp_l = tmp_l->next) {
+                __C_DBG("port %u is released", port);
+                bit_array_clear(spec->port_pool.ports_used, port);
+                g_atomic_int_inc(&spec->port_pool.free_ports);
+            }
+            /* so that this finishes */
+            return ret;
+        }
+    }
+
+    /* all ports allocated */
+    if (i==num_ports)
+        return 0;
+}
+/////////////////////////////////////////////
 
 /* puts list of socket_t into "out" */
 int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wanted_start_port,
@@ -657,6 +734,60 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 	} else {
 		__C_DBG("port %d is NOOT USED in port pool", port);
 	}
+/////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////
+
+	/* allocation of sk - TBD:deallocation */
+	for (i = 0; i < num_ports; i++) {
+        sk = g_slice_alloc0(sizeof(*sk));
+        sk->fd = -1;
+        g_queue_push_tail(out, sk);
+	}
+
+	/* checking if ports in use (!wanted_start) -> what if all good / what if 1 fails */
+	pp = &spec->port_pool;
+
+	for (i = 0; i < num_ports; i++) { /* ports are not ok here * -> what if it fails */
+	    get_port6(r, port, spec);
+	}
+
+	/* if all is ok */
+	for (i = 0; i < num_ports; i++) {
+	    g_atomic_int_dec_and_test(&pp->free_ports);
+	    __C_DBG("%d free ports remaining on interface %s", pp->free_ports,
+            sockaddr_print_buf(&spec->local_address.addr));
+	}
+
+	///////////////////////
+	static int get_port(socket_t *r, unsigned int port, struct intf_spec *spec) {
+	    int ret;
+	    struct port_pool *pp;
+
+	    __C_DBG("attempting to open port %u", port);
+
+	    pp = &spec->port_pool;
+
+	    if (bit_array_set(pp->ports_used, port)) {
+	        __C_DBG("port %d in use", port);
+	        return -1;
+	    }
+	    __C_DBG("port %d locked", port);
+
+	    ret = get_port6(r, port, spec);
+
+	    if (ret) {
+	        __C_DBG("couldn't open port %d", port);
+	        bit_array_clear(pp->ports_used, port);
+	        return ret;
+	    }
+
+	    g_atomic_int_dec_and_test(&pp->free_ports);
+	    __C_DBG("%d free ports remaining on interface %s", pp->free_ports,
+	            sockaddr_print_buf(&spec->local_address.addr));
+
+	    return 0;
+	}
+	///////////////////////
 
 	while (1) {
 		__C_DBG("cycle=%d, port=%d", cycle, port);
@@ -668,12 +799,6 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 		}
 
 		for (i = 0; i < num_ports; i++) {
-			sk = g_slice_alloc0(sizeof(*sk));
-			// fd=0 is a valid file descriptor that may be closed
-			// accidentally by free_port if previously bounded
-			sk->fd = -1;
-			g_queue_push_tail(out, sk);
-
 			if (!wanted_start_port && port > pp->max) {
 				port = 0;
 				cycle++;
@@ -692,6 +817,44 @@ release_restart:
 		if (cycle >= 2 || wanted_start_port > 0)
 			goto fail;
 	}
+/////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////
+
+	while (1) {
+	        __C_DBG("cycle=%d, port=%d", cycle, port);
+	        if (!wanted_start_port) {
+	            if (port < pp->min)
+	                port = pp->min;
+	            if ((port & 1))
+	                port++;
+	        }
+
+	        for (i = 0; i < num_ports; i++) {
+	            sk = g_slice_alloc0(sizeof(*sk));
+	            // fd=0 is a valid file descriptor that may be closed
+	            // accidentally by free_port if previously bounded
+	            sk->fd = -1;
+	            g_queue_push_tail(out, sk);
+
+	            if (!wanted_start_port && port > pp->max) {
+	                port = 0;
+	                cycle++;
+	                goto release_restart;
+	            }
+
+	            if (get_port(sk, port++, spec))
+	                goto release_restart;
+	        }
+	        break;
+
+	release_restart:
+	        while ((sk = g_queue_pop_head(out)))
+	            free_port(sk, spec);
+
+	        if (cycle >= 2 || wanted_start_port > 0)
+	            goto fail;
+	    }
+
 
 	/* success */
 	g_atomic_int_set(&pp->last_used, port);
