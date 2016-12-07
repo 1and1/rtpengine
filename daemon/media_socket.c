@@ -629,13 +629,14 @@ inline void free_set(struct port_pool pp, int start_port, int num_ports) {
 }
 
 
-/* TBD: write entire function, compile, messages, error cases */
+/* TODO: write entire function, compile, messages, error cases */
 //open_sockets(unsigned int start_port, int num_ports, struct intf_spec *spec, GList *ports);
 //inline int find_first_consec_ports(struct port_pool pp, int start_port, int stop_port, int num_ports, int *first_port ) {
 
 #define PORTS_STILL_AVAILABLE   0
 #define PORTS_NOT_AVAILABLE     1
 
+/* PORTS_STILL_AVAILABLE, PORTS_NOT_AVAILABLE */
 inline int find_first_consec_ports(struct port_pool pp, int start_port, int stop_port, int num_ports, int *first_port ) {
     int j;
     int starting_port;
@@ -701,13 +702,16 @@ static inline int open_sockets(unsigned int start_port, int num_ports, struct in
 /////////////////////////////////////////////
 
 /* puts list of socket_t into "out" */
-int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wanted_start_port,
+int __get_consecutive_ports(GQueue *out_queue, unsigned int num_ports, unsigned int wanted_start_port,
 		struct intf_spec *spec)
 {
 	int i, cycle = 0;
 	socket_t *sk;
-	int port;
+	int port,  *first_port;
 	struct port_pool *pp;
+
+	/* this is the way to create a list */
+	GLIST *out_list = NULL;
 
 	if (num_ports == 0)
 		return 0;
@@ -737,15 +741,49 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 /////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////
 
-	/* allocation of sk - TBD:deallocation */
+	/* allocation of sk - TODO: deallocation */
 	for (i = 0; i < num_ports; i++) {
         sk = g_slice_alloc0(sizeof(*sk));
         sk->fd = -1;
-        g_queue_push_tail(out, sk);
+        //g_queue_push_tail(out, sk);
+        g_list_prepend(out_list, sk);
 	}
 
 	/* checking if ports in use (!wanted_start) -> what if all good / what if 1 fails */
 	pp = &spec->port_pool;
+
+	/* PORTS_STILL_AVAILABLE, PORTS_NOT_AVAILABLE */
+	inline int find_first_consec_ports(struct port_pool pp, int start_port, int stop_port, int num_ports, int *first_port)
+
+
+	/* Go through all the ports in the port pool:
+	 * * find the first N not used possibly going to next ports
+	 * * try to open sockets
+	 * * * if fails try find some more ports (while)
+	 * */
+	int ret_find, ret_open;
+	int ports_available = 1;
+	cycle = 1;
+	while (ports_available) {
+	    ret_find = find_first_consec_ports(pp, port, pp->max, num_ports, first_port);
+	    if (PORTS_NOT_AVAILABLE == res) {
+	        if (cycle == 1) { /* goto start of pool */
+	            port = pp->min;
+	            cycle++;
+	        }
+	        else {  /* no ports available remaining */
+	            ports_available = 0;
+	            break; // TOOD check this
+	        }
+	    }
+
+	    // int open_sockets(unsigned int start_port, int num_ports, struct intf_spec *spec, GList *ports)
+	    ret_open = open_sockets(*first_port, num_ports, pp, out_list);
+	    if (ret_open) {
+	        /* there was a problem in opening sockets */
+
+	    }
+	}
 
 	for (i = 0; i < num_ports; i++) { /* ports are not ok here * -> what if it fails */
 	    get_port6(r, port, spec);
@@ -757,37 +795,6 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 	    __C_DBG("%d free ports remaining on interface %s", pp->free_ports,
             sockaddr_print_buf(&spec->local_address.addr));
 	}
-
-	///////////////////////
-	static int get_port(socket_t *r, unsigned int port, struct intf_spec *spec) {
-	    int ret;
-	    struct port_pool *pp;
-
-	    __C_DBG("attempting to open port %u", port);
-
-	    pp = &spec->port_pool;
-
-	    if (bit_array_set(pp->ports_used, port)) {
-	        __C_DBG("port %d in use", port);
-	        return -1;
-	    }
-	    __C_DBG("port %d locked", port);
-
-	    ret = get_port6(r, port, spec);
-
-	    if (ret) {
-	        __C_DBG("couldn't open port %d", port);
-	        bit_array_clear(pp->ports_used, port);
-	        return ret;
-	    }
-
-	    g_atomic_int_dec_and_test(&pp->free_ports);
-	    __C_DBG("%d free ports remaining on interface %s", pp->free_ports,
-	            sockaddr_print_buf(&spec->local_address.addr));
-
-	    return 0;
-	}
-	///////////////////////
 
 	while (1) {
 		__C_DBG("cycle=%d, port=%d", cycle, port);
