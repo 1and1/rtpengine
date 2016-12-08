@@ -633,11 +633,10 @@ inline void free_set(struct port_pool pp, int start_port, int num_ports) {
 //open_sockets(unsigned int start_port, int num_ports, struct intf_spec *spec, GList *ports);
 //inline int find_first_consec_ports(struct port_pool pp, int start_port, int stop_port, int num_ports, int *first_port ) {
 
-#define PORTS_STILL_AVAILABLE   0
-#define PORTS_NOT_AVAILABLE     1
+#define PORTS_FOUND      0
+#define PORTS_NOT_FOUND  1
 
-/* PORTS_STILL_AVAILABLE, PORTS_NOT_AVAILABLE */
-inline int find_first_consec_ports(struct port_pool pp, int start_port, int stop_port, int num_ports, int *first_port ) {
+inline int find_consec_ports(struct port_pool pp, int start_port, int stop_port, int num_ports, int *first_port ) {
     int j;
     int starting_port;
     int crt_port;
@@ -657,10 +656,10 @@ inline int find_first_consec_ports(struct port_pool pp, int start_port, int stop
 
     /* we don't have the ports */
     if (count != num_ports)
-        return PORTS_NOT_AVAILABLE;
+        return PORTS_NOT_FOUND;
 
     *first_port = crt_port - num_ports;
-    return PORTS_STILL_AVAILABLE;
+    return PORTS_FOUND;
 }
 
 /* XXX family specific? unify? */
@@ -699,10 +698,9 @@ static inline int open_sockets(unsigned int start_port, int num_ports, struct in
     if (i==num_ports)
         return 0;
 }
-/////////////////////////////////////////////
 
 /* puts list of socket_t into "out" */
-int __get_consecutive_ports(GQueue *out_queue, unsigned int num_ports, unsigned int wanted_start_port,
+int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wanted_start_port,
 		struct intf_spec *spec)
 {
 	int i, cycle = 0;
@@ -738,9 +736,9 @@ int __get_consecutive_ports(GQueue *out_queue, unsigned int num_ports, unsigned 
 	} else {
 		__C_DBG("port %d is NOOT USED in port pool", port);
 	}
-/////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////
 
+	/* TODO - messages stay the same */
+	/* TODO - wanted start port case */
 	/* allocation of sk - TODO: deallocation */
 	for (i = 0; i < num_ports; i++) {
         sk = g_slice_alloc0(sizeof(*sk));
@@ -752,122 +750,53 @@ int __get_consecutive_ports(GQueue *out_queue, unsigned int num_ports, unsigned 
 	/* checking if ports in use (!wanted_start) -> what if all good / what if 1 fails */
 	pp = &spec->port_pool;
 
-	/* PORTS_STILL_AVAILABLE, PORTS_NOT_AVAILABLE */
-	inline int find_first_consec_ports(struct port_pool pp, int start_port, int stop_port, int num_ports, int *first_port)
-
-
 	/* Go through all the ports in the port pool:
-	 * * find the first N not used possibly going to next ports
-	 * * try to open sockets
-	 * * * if fails try find some more ports (while)
-	 * */
-	int ret_find, ret_open;
+	 * find_first_consec_ports(port, pp->max);
+	 * find_first_consec_ports(pp->min, pp->max);
+	 * open the corresponding sockets
+	 */
+	int not_found, secured_ports = 0;
 	int ports_available = 1;
 	cycle = 1;
-	while (ports_available) {
-	    ret_find = find_first_consec_ports(pp, port, pp->max, num_ports, first_port);
-	    if (PORTS_NOT_AVAILABLE == res) {
-	        if (cycle == 1) { /* goto start of pool */
+
+	while (ports_available && !secured_ports) {
+	    not_found = find_consec_ports(pp, port, pp->max, num_ports, first_port);
+	    if (!not_found) {
+	        if (open_sockets(*first_port, num_ports, pp, out_list) == 0 )
+	            secured_ports = 1;
+	    }
+	    else {
+	        if (cycle == 1) {
 	            port = pp->min;
 	            cycle++;
+	            /* find_consec_ports(pp->min, pp->max) */
 	        }
-	        else {  /* no ports available remaining */
+	        else {
+	            /* no ports available remaining */
 	            ports_available = 0;
-	            break; // TOOD check this
+	            goto fail; // TODO refactor this
 	        }
 	    }
-
-	    // int open_sockets(unsigned int start_port, int num_ports, struct intf_spec *spec, GList *ports)
-	    ret_open = open_sockets(*first_port, num_ports, pp, out_list);
-	    if (ret_open) {
-	        /* there was a problem in opening sockets */
-
-	    }
 	}
-
-	for (i = 0; i < num_ports; i++) { /* ports are not ok here * -> what if it fails */
-	    get_port6(r, port, spec);
-	}
-
-	/* if all is ok */
-	for (i = 0; i < num_ports; i++) {
-	    g_atomic_int_dec_and_test(&pp->free_ports);
-	    __C_DBG("%d free ports remaining on interface %s", pp->free_ports,
-            sockaddr_print_buf(&spec->local_address.addr));
-	}
-
-	while (1) {
-		__C_DBG("cycle=%d, port=%d", cycle, port);
-		if (!wanted_start_port) {
-			if (port < pp->min)
-				port = pp->min;
-			if ((port & 1))
-				port++;
-		}
-
-		for (i = 0; i < num_ports; i++) {
-			if (!wanted_start_port && port > pp->max) {
-				port = 0;
-				cycle++;
-				goto release_restart;
-			}
-
-			if (get_port(sk, port++, spec))
-				goto release_restart;
-		}
-		break;
-
-release_restart:
-		while ((sk = g_queue_pop_head(out)))
-			free_port(sk, spec);
-
-		if (cycle >= 2 || wanted_start_port > 0)
-			goto fail;
-	}
-/////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////
-
-	while (1) {
-	        __C_DBG("cycle=%d, port=%d", cycle, port);
-	        if (!wanted_start_port) {
-	            if (port < pp->min)
-	                port = pp->min;
-	            if ((port & 1))
-	                port++;
-	        }
-
-	        for (i = 0; i < num_ports; i++) {
-	            sk = g_slice_alloc0(sizeof(*sk));
-	            // fd=0 is a valid file descriptor that may be closed
-	            // accidentally by free_port if previously bounded
-	            sk->fd = -1;
-	            g_queue_push_tail(out, sk);
-
-	            if (!wanted_start_port && port > pp->max) {
-	                port = 0;
-	                cycle++;
-	                goto release_restart;
-	            }
-
-	            if (get_port(sk, port++, spec))
-	                goto release_restart;
-	        }
-	        break;
-
-	release_restart:
-	        while ((sk = g_queue_pop_head(out)))
-	            free_port(sk, spec);
-
-	        if (cycle >= 2 || wanted_start_port > 0)
-	            goto fail;
-	    }
-
 
 	/* success */
-	g_atomic_int_set(&pp->last_used, port);
+	g_atomic_int_set(&pp->last_used, *first_port + num_ports); // TODO check if this ok or -1 required ; codereview, no testing, seems ok
+
+	/* TODO is reversing needed? probably not*/
+	GList *llink;
+	while (out_list != NULL)
+	{
+	    llink = g_list_first(out_list);
+	    out_list = g_list_remove_link (out_list, out_list);
+	    //copy in Queue
+	    g_queue_push_tail(out, (socket_t *)(llink->data));
+	    //todo check that this does not free sks
+	    g_list_free(out_list); // vs g_list_free_full
+	}
 
 	__C_DBG("Opened ports %u.. on interface %s for media relay",
 		((socket_t *) out->head->data)->local.port, sockaddr_print_buf(&spec->local_address.addr));
+
 	return 0;
 
 fail:
