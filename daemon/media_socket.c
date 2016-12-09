@@ -622,7 +622,7 @@ static void free_port(socket_t *r, struct intf_spec *spec) {
 }
 
 /////////////////////////////////////////////
-inline void free_set(struct port_pool pp, int start_port, int num_ports) {
+static inline void free_set(struct port_pool *pp, int start_port, int num_ports) {
     int i;
     for (i=0; i<num_ports; i++)
         bit_array_clear(pp->ports_used, start_port+i);
@@ -636,16 +636,15 @@ inline void free_set(struct port_pool pp, int start_port, int num_ports) {
 #define PORTS_FOUND      0
 #define PORTS_NOT_FOUND  1
 
-inline int find_consec_ports(struct port_pool pp, int start_port, int stop_port, int num_ports, int *first_port ) {
-    int j;
-    int starting_port;
+static inline int find_consec_ports(struct port_pool *pp, int start_port, int stop_port, int num_ports, int *first_port ) {
     int crt_port;
     int  count = 0;
-
+	
+    crt_port = start_port;
     while (count != num_ports && crt_port <= stop_port ) {
         if (bit_array_set(pp->ports_used, crt_port)) {
             __C_DBG("port %d in use", port);
-            free_set(pp->ports_used, start_port, count);
+            free_set(pp, start_port, count);
 
             count = 0;
             crt_port++;
@@ -664,12 +663,12 @@ inline int find_consec_ports(struct port_pool pp, int start_port, int stop_port,
 
 /* XXX family specific? unify? */
 static inline int open_sockets(unsigned int start_port, int num_ports, struct intf_spec *spec, GList *ports) {
-    int i, ret;
+    int i, ret, port;
     socket_t *sk, *tmp_sk;
     GList *l, *tmp_l;
 
     /* TODO: all ports allocated; one port fails */
-    for (l = ports; l != NULL; l = l->next) {
+    for (l = ports, i = 0; l != NULL; l = l->next, i++) {
         sk = l->data;
 
         ret = get_port6(sk, start_port + i, spec);
@@ -684,10 +683,13 @@ static inline int open_sockets(unsigned int start_port, int num_ports, struct in
                 release_port(tmp_sk, spec);
             }
 
+	    port = start_port + i; 	
+	    /* clearing bit set from start_port+i to start_port+num_ports */		
             for (; tmp_l != NULL; tmp_l = tmp_l->next) {
                 __C_DBG("port %u is released", port);
                 bit_array_clear(spec->port_pool.ports_used, port);
                 g_atomic_int_inc(&spec->port_pool.free_ports);
+		port++;
             }
             /* so that this finishes */
             return ret;
@@ -695,8 +697,8 @@ static inline int open_sockets(unsigned int start_port, int num_ports, struct in
     }
 
     /* all ports allocated */
-    if (i==num_ports)
-        return 0;
+    //if (i==num_ports)
+    return 0;
 }
 
 /* puts list of socket_t into "out" */
@@ -709,7 +711,7 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 	struct port_pool *pp;
 
 	/* this is the way to create a list */
-	GLIST *out_list = NULL;
+	GList *out_list = NULL;
 
 	if (num_ports == 0)
 		return 0;
@@ -741,10 +743,10 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 	/* TODO - wanted start port case */
 	/* allocation of sk - TODO: deallocation */
 	for (i = 0; i < num_ports; i++) {
-        sk = g_slice_alloc0(sizeof(*sk));
-        sk->fd = -1;
-        //g_queue_push_tail(out, sk);
-        g_list_prepend(out_list, sk);
+        	sk = g_slice_alloc0(sizeof(*sk));
+	        sk->fd = -1;
+        	//g_queue_push_tail(out, sk);
+	        g_list_prepend(out_list, sk);
 	}
 
 	/* checking if ports in use (!wanted_start) -> what if all good / what if 1 fails */
@@ -762,7 +764,7 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 	while (ports_available && !secured_ports) {
 	    not_found = find_consec_ports(pp, port, pp->max, num_ports, first_port);
 	    if (!not_found) {
-	        if (open_sockets(*first_port, num_ports, pp, out_list) == 0 )
+	        if (open_sockets(*first_port, num_ports, spec, out_list) == 0 )
 	            secured_ports = 1;
 	    }
 	    else {
