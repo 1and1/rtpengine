@@ -661,7 +661,7 @@ static inline int find_consec_ports(struct port_pool *pp, int start_port, int st
 }
 
 /* XXX family specific? unify? */
-static inline int open_sockets(int start_port, int num_ports, struct intf_spec *spec, GList *ports) {
+static inline int open_sockets(int start_port, int num_ports, struct intf_spec *spec, GList *ports, int failing_port) {
     int i, ret, port;
     socket_t *sk, *tmp_sk;
     GList *l, *tmp_l;
@@ -683,13 +683,13 @@ static inline int open_sockets(int start_port, int num_ports, struct intf_spec *
                 release_port(tmp_sk, spec);
             }
 
-	    port = start_port + i; 	
-	    /* clearing bit set from start_port+i to start_port+num_ports */		
+            port = start_port + i;
+            /* clearing bit set from start_port+i to start_port+num_ports */
             for (; tmp_l != NULL; tmp_l = tmp_l->next) {
                 __C_DBG("port %u is released", port);
                 bit_array_clear(spec->port_pool.ports_used, port);
                 g_atomic_int_inc(&spec->port_pool.free_ports);
-		port++;
+                port++;
             }
             /* so that this finishes */
             return ret;
@@ -715,8 +715,16 @@ void print_list(GList *lst) {
     }
 }
 
-static void print_available_ports(struct intf_spec *spec) {
-    __C_DBG("------ free_ports: %u ", spec->);
+//static void print_available_ports(struct intf_spec *spec) {
+  //  __C_DBG("------ free_ports: %u ", spec->);
+//}
+
+inline int adjust_port(int port, int wanted_start_port, struct port_pool *pp) {
+    if (!wanted_start_port) {
+        if (port < pp->min) port = pp->min;
+        if ((port & 1)) port++;
+    }
+    return port;
 }
 
 /* puts list of socket_t into "out" */
@@ -725,7 +733,7 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 {
 	int i, cycle = 0;
 	socket_t *sk;
-	int port, first_port;
+	int port, first_port, failing_idx = 0;
 	struct port_pool *pp;
 
 	/* this is the way to create a list */
@@ -742,6 +750,7 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 		port = wanted_start_port;
 		__C_DBG("port=%d", port);
 	} else {
+	    /* TODO - this always fails for first use (last_used at some point is 0) */
 		port = g_atomic_int_get(&pp->last_used);
 		__C_DBG("before randomization port=%d", port);
 #if PORT_RANDOM_MIN && PORT_RANDOM_MAX
@@ -780,25 +789,27 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 	int ports_available = 1;
 	cycle = 1;
 
-	__C_DBG(" --------000000 ");
-	print_list(out_list);
-	__C_DBG(" --------000000 ");
+	//__C_DBG(" --------000000 ");
+	//print_list(out_list);
+	//__C_DBG(" --------000000 ");i
 
 	while (ports_available && !secured_ports) {
 	    __C_DBG(" --------1 ");
 	    if (!wanted_start_port) {
-            if (port < pp->min)
-                port = pp->min;
-            if ((port & 1))
-                port++;
+            if (port < pp->min) port = pp->min;
+            if ((port & 1)) port++;
         }
 	    not_found = find_consec_ports(pp, port, pp->max, num_ports, &first_port);
 	    __C_DBG(" --------2 ");
 	    if (!not_found) {
 	        __C_DBG(" --------22 ");
-	        if (open_sockets(first_port, num_ports, spec, out_list) == 0 ) {
+	        if (open_sockets(first_port, num_ports, spec, out_list, &failing_idx) == 0 ) {
 	            __C_DBG(" --------3 ");
 	            secured_ports = 1;
+	        }
+	        /* what happens if cannot open sockets? */
+	        else {
+	            port += failing_idx + 1;
 	        }
 	    }
 	    else {
@@ -821,8 +832,9 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 	/* success */
 	g_atomic_int_set(&pp->last_used, first_port + num_ports); // TODO check if this ok or -1 required ;
 	                                                          // codereview, no testing, seems ok
+	__C_DBG(" --------fp <%d>, np <%d>, last used port <%d> ", first_port, num_ports, pp->last_used);
 
-	print_list(out_list);
+	//print_list(out_list);
 
 	/* TODO is reversing needed? probably not*/
 	static int step = 0;
