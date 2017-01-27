@@ -666,8 +666,10 @@ static inline int open_sockets(int start_port, int num_ports, struct intf_spec *
     socket_t *sk, *tmp_sk;
     GList *l, *tmp_l;
 
+
+
     /* TODO: all ports allocated; one port fails */
-    for (l = ports, i = 0; l != NULL; l = l->next, i++) {
+    for (l = ports->head, i = 0; l != NULL; l = l->next, i++) {
         __C_DBG(" --------open_sockets ");
         sk = l->data;
 
@@ -741,12 +743,13 @@ static inline int saved_open_sockets(int start_port, int num_ports, struct intf_
     return 0;
 }
 
-void print_list(GList *lst) {
-    GList *l = lst;
+void print_queue(GQueue *q) {
+    GList *l;
 
-    if (lst == NULL)
+    if (q == NULL)
         __C_DBG("--- print_list NULL");
 
+    l = q->head;
     while (l != NULL)
     {
         GList *next = l->next;
@@ -754,6 +757,9 @@ void print_list(GList *lst) {
         l = next;
     }
 }
+
+
+
 
 //static void print_available_ports(struct intf_spec *spec) {
   //  __C_DBG("------ free_ports: %u ", spec->);
@@ -777,7 +783,7 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 	struct port_pool *pp;
 
 	/* this is the way to create a list */
-	GList *out_list = NULL;
+	//GList *out_list = NULL;
 
 	if (num_ports == 0)
 		return 0;
@@ -830,7 +836,7 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 	cycle = 1;
 
 	//__C_DBG(" --------000000 ");
-	//print_list(out_list);
+	//print_queue(out);
 	//__C_DBG(" --------000000 ");i
 
 	while (ports_available && !secured_ports) {
