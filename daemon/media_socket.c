@@ -661,7 +661,47 @@ static inline int find_consec_ports(struct port_pool *pp, int start_port, int st
 }
 
 /* XXX family specific? unify? */
-static inline int open_sockets(int start_port, int num_ports, struct intf_spec *spec, GList *ports, int failing_port) {
+static inline int open_sockets(int start_port, int num_ports, struct intf_spec *spec, GQueue *ports, int failing_port) {
+    int i, ret, port;
+    socket_t *sk, *tmp_sk;
+    GList *l, *tmp_l;
+
+    /* TODO: all ports allocated; one port fails */
+    for (l = ports, i = 0; l != NULL; l = l->next, i++) {
+        __C_DBG(" --------open_sockets ");
+        sk = l->data;
+
+        ret = get_port6(sk, start_port + i, spec);
+        /* one port fails */
+        if (ret) {
+            __C_DBG("couldn't open port %d", port);
+
+            /* TODO: what if release_port fails
+             * test: ports has 0,1,numerous elems */
+            for (tmp_l = ports; tmp_l != l; tmp_l = tmp_l->next) {
+                tmp_sk = tmp_l->data;
+                release_port(tmp_sk, spec);
+            }
+
+            port = start_port + i;
+            /* clearing bit set from start_port+i to start_port+num_ports */
+            for (; tmp_l != NULL; tmp_l = tmp_l->next) {
+                __C_DBG("port %u is released", port);
+                bit_array_clear(spec->port_pool.ports_used, port);
+                g_atomic_int_inc(&spec->port_pool.free_ports);
+                port++;
+            }
+            /* so that this finishes */
+            return ret;
+        }
+    }
+
+    /* all ports allocated */
+    //if (i==num_ports)
+    return 0;
+}
+
+static inline int saved_open_sockets(int start_port, int num_ports, struct intf_spec *spec, GList *ports, int failing_port) {
     int i, ret, port;
     socket_t *sk, *tmp_sk;
     GList *l, *tmp_l;
@@ -772,8 +812,8 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 	for (i = 0; i < num_ports; i++) {
         	sk = g_slice_alloc0(sizeof(*sk));
 	        sk->fd = -1;
-        	//g_queue_push_tail(out, sk);
-	        out_list = g_list_prepend(out_list, sk);
+        	g_queue_push_tail(out, sk);
+	        //-- out_list = g_list_prepend(out_list, sk);
 	        __C_DBG(" --- alloc ");
 	}
 
@@ -803,7 +843,8 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 	    __C_DBG(" --------2 ");
 	    if (!not_found) {
 	        __C_DBG(" --------22 ");
-	        if (open_sockets(first_port, num_ports, spec, out_list, &failing_idx) == 0 ) {
+	        //-- if (open_sockets(first_port, num_ports, spec, out_list, &failing_idx) == 0 ) {
+	        if (open_sockets(first_port, num_ports, spec, out, &failing_idx) == 0 ) {
 	            __C_DBG(" --------3 ");
 	            secured_ports = 1;
 	        }
@@ -837,6 +878,7 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 	//print_list(out_list);
 
 	/* TODO is reversing needed? probably not*/
+	/*
 	static int step = 0;
 	GList *llink;
 	while (out_list != NULL)
@@ -853,7 +895,7 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 	    //todo check that this does not free sks
 	    g_list_free(llink); // vs g_list_free_full
 	}
-
+    */
 	__C_DBG("Opened ports %u.. on interface %s for media relay",
 		((socket_t *) out->head->data)->local.port, sockaddr_print_buf(&spec->local_address.addr));
 
