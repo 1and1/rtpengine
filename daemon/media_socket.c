@@ -772,7 +772,59 @@ inline int adjust_port(int port, int wanted_start_port, struct port_pool *pp) {
     }
     return port;
 }
+/////////////////////////
 
+int __orig_get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wanted_start_port,
+        struct intf_spec *spec)
+{
+    int i, cycle = 0;
+    socket_t *sk;
+    int port;
+    struct port_pool *pp;
+
+    if (num_ports == 0)
+        return 0;
+
+    pp = &spec->port_pool;
+
+    __C_DBG("wanted_start_port=%d", wanted_start_port);
+
+
+    port = wanted_start_port;
+    __C_DBG("port=%d", port);
+
+    // debug msg if port is in the given interval
+    if (bit_array_isset(pp->ports_used, port)) {
+        __C_DBG("port %d is USED in port pool", port);
+    } else {
+        __C_DBG("port %d is NOOT USED in port pool", port);
+    }
+
+    __C_DBG("cycle=%d, port=%d", cycle, port);
+
+    sk = g_slice_alloc0(sizeof(*sk));
+    // fd=0 is a valid file descriptor that may be closed
+    // accidentally by free_port if previously bounded
+    sk->fd = -1;
+    g_queue_push_tail(out, sk);
+
+    if (get_port(sk, port++, spec)) {
+        sk = g_queue_pop_head(out);
+        free_port(sk, spec);
+        ilog(LOG_ERR, "Failed to get %u consecutive ports on interface %s for media relay",
+                num_ports, sockaddr_print_buf(&spec->local_address.addr));
+        return -1;
+    }
+
+    /* success */
+    g_atomic_int_set(&pp->last_used, port);
+
+    __C_DBG("Opened ports %u.. on interface %s for media relay",
+        ((socket_t *) out->head->data)->local.port, sockaddr_print_buf(&spec->local_address.addr));
+    return 0;
+
+}
+/////////////////////////
 /* puts list of socket_t into "out" */
 int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wanted_start_port,
 		struct intf_spec *spec)
