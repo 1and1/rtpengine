@@ -481,7 +481,7 @@ static void __interface_append(struct intf_config *ifa, sockfamily_t *fam) {
 		spec->port_pool.min = ifa->port_min;
 		spec->port_pool.max = ifa->port_max;
 		spec->port_pool.free_ports = spec->port_pool.max - spec->port_pool.min + 1;
-		qAlloc(&spec->port_pool.free_ports_queue, spec->port_pool.free_ports);
+		qAlloc(&(spec->port_pool.free_ports_queue), spec->port_pool.free_ports);
 		g_hash_table_insert(__intf_spec_addr_type_hash, &spec->local_address, spec);
 	}
 
@@ -634,66 +634,45 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 	socket_t *sk;
 	int port;
 	struct port_pool *pp;
+	SQueue *portsQ;
 
 	if (num_ports == 0)
 		return 0;
 
 	pp = &spec->port_pool;
+	portsQ = &pp->free_ports_queue;
 
-	__C_DBG("wanted_start_port=%d", wanted_start_port);
+	/* TODO number of ports problem can happen in the code stemming from release_restart */
+	if (size(portsQ) < num_ports)
+	    goto fail;
 
-	if (wanted_start_port > 0) {
-		port = wanted_start_port;
-		__C_DBG("port=%d", port);
-	} else {
-		port = g_atomic_int_get(&pp->last_used);
-		__C_DBG("before randomization port=%d", port);
-#if PORT_RANDOM_MIN && PORT_RANDOM_MAX
-		port += PORT_RANDOM_MIN + (random() % (PORT_RANDOM_MAX - PORT_RANDOM_MIN));
-#endif
-		__C_DBG("after  randomization port=%d", port);
-	}
-
-	// debug msg if port is in the given interval
-	if (bit_array_isset(pp->ports_used, port)) {
-		__C_DBG("port %d is USED in port pool", port);
-	} else {
-		__C_DBG("port %d is NOOT USED in port pool", port);
-	}
-
+	/* TODO what happens if i cannot bind the ports */
 	while (1) {
 		__C_DBG("cycle=%d, port=%d", cycle, port);
-		if (!wanted_start_port) {
-			if (port < pp->min)
-				port = pp->min;
-			if ((port & 1))
-				port++;
-		}
 
 		for (i = 0; i < num_ports; i++) {
+			port = removeData(portsQ);
+
 			sk = g_slice_alloc0(sizeof(*sk));
 			// fd=0 is a valid file descriptor that may be closed
 			// accidentally by free_port if previously bounded
 			sk->fd = -1;
 			g_queue_push_tail(out, sk);
 
-			if (!wanted_start_port && port > pp->max) {
-				port = 0;
-				cycle++;
+			if (get_port(sk, port, spec)) {
+			    cycle++;
 				goto release_restart;
 			}
 
-			if (get_port(sk, port++, spec))
-				goto release_restart;
 		}
 		break;
-
 release_restart:
 		while ((sk = g_queue_pop_head(out)))
 			free_port(sk, spec);
 
-		if (cycle >= 2 || wanted_start_port > 0)
+		if (cycle >= 2)
 			goto fail;
+
 	}
 
 	/* success */
@@ -708,6 +687,7 @@ fail:
 			num_ports, sockaddr_print_buf(&spec->local_address.addr));
 	return -1;
 }
+
 
 /* puts a list of "struct intf_list" into "out", containing socket_t list */
 int get_consecutive_ports(GQueue *out, unsigned int num_ports, const struct logical_intf *log) {
