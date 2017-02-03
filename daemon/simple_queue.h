@@ -8,7 +8,7 @@
 
 
 typedef struct SQueue {
-	int *intAray;
+	int *intArray;
 	int fullSize;
 	int front;
 	int rear;

@@ -20,7 +20,7 @@ inline  int qFree(SQueue *q, int size) {
 }
 
 inline int peek(SQueue *q) {
-   return q->intArray[front];
+   return q->intArray[q->front];
 }
 
 inline int isEmpty(SQueue *q) {
@@ -37,7 +37,7 @@ inline int size(SQueue *q) {
 
 inline void insert(SQueue *q, int data) {
 
-   if(!isFull()) {
+   if(!isFull(q)) {
 
       if(q->rear == q->fullSize-1) {
          q->rear = -1;
@@ -49,7 +49,7 @@ inline void insert(SQueue *q, int data) {
 }
 
 inline int removeData(SQueue *q) {
-   int data = intArray[q->front++];
+   int data = q->intArray[q->front++];
 
    if(q->front == q->fullSize) {
       q->front = 0;
