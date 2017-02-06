@@ -23,7 +23,7 @@ inline int qShuffle(SQueue *q, int port_min, int port_max) {
     }
 
     q->front = 0;
-    q->rear == q->fullSize-1;
+    q->rear = q->fullSize-1;
     q->itemCount = q->fullSize;
 
 }
