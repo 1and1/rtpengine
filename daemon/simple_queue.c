@@ -12,6 +12,22 @@ inline int qAlloc(SQueue *q, int size) {
 	q->fullSize = size;
 }
 
+inline int qShuffle(SQueue *q, int port_min, int port_max) {
+    int i;
+
+    if (!q)
+        return -1;
+
+    for (i=0; i<q->fullSize; i++) {
+        q->intArray[i] = port_min + i;
+    }
+
+    q->front = 0;
+    q->rear == q->fullSize-1;
+    q->itemCount = q->fullSize;
+
+}
+
 inline  int qFree(SQueue *q, int size) {
 	if (!q)
 		return -1;

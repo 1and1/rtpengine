@@ -102,8 +102,12 @@ enum call_type {
 #define RTP_LOOP_MAX_COUNT	30 /* number of consecutively detected dupes to trigger protection */
 #endif
 
+#define __C_DBG(x...) ilog(LOG_ERR, x)
+
+#define __DEBUG 1
 #ifdef __DEBUG
-#define __C_DBG(x...) ilog(LOG_DEBUG, x)
+//#define __C_DBG(x...) ilog(LOG_DEBUG, x)
+#define __C_DBG(x...) ilog(LOG_ERR, x)
 #else
 #define __C_DBG(x...) ((void)0)
 #endif

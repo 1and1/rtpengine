@@ -482,6 +482,7 @@ static void __interface_append(struct intf_config *ifa, sockfamily_t *fam) {
 		spec->port_pool.max = ifa->port_max;
 		spec->port_pool.free_ports = spec->port_pool.max - spec->port_pool.min + 1;
 		qAlloc(&(spec->port_pool.free_ports_queue), spec->port_pool.free_ports);
+		qShuffle(&(spec->port_pool.free_ports_queue), spec->port_pool.min, spec->port_pool.max);
 		g_hash_table_insert(__intf_spec_addr_type_hash, &spec->local_address, spec);
 	}
 
@@ -639,12 +640,18 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 	if (num_ports == 0)
 		return 0;
 
+	__C_DBG("__get_consecutive_ports: 111111 \n");
+
 	pp = &spec->port_pool;
 	portsQ = &pp->free_ports_queue;
+
+	__C_DBG("__get_consecutive_ports: 22222 \n");
 
 	/* TODO number of ports problem can happen in the code stemming from release_restart */
 	if (size(portsQ) < num_ports)
 	    goto fail;
+
+	__C_DBG("__get_consecutive_ports: 33333 \n");
 
 	/* TODO what happens if i cannot bind the ports */
 	while (1) {
@@ -1501,3 +1508,4 @@ struct stream_fd *stream_fd_new(socket_t *fd, struct call *call, const struct lo
 
 	return sfd;
 }
+
