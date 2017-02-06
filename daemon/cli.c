@@ -21,7 +21,6 @@
 
 #include "rtpengine_config.h"
 
-
 static void destroy_own_foreign_calls(struct callmaster *m, unsigned int foreign_call, unsigned int uint_keyspace_db) {
 	struct call *c = NULL;
 	struct call_monologue *ml = NULL;
