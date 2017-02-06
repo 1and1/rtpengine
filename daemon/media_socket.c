@@ -640,18 +640,14 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 	if (num_ports == 0)
 		return 0;
 
-	__C_DBG("__get_consecutive_ports: 111111 \n");
+	port_alloc_status();
 
 	pp = &spec->port_pool;
 	portsQ = &pp->free_ports_queue;
 
-	__C_DBG("__get_consecutive_ports: 22222 \n");
-
 	/* TODO number of ports problem can happen in the code stemming from release_restart */
 	if (size(portsQ) < num_ports)
 	    goto fail;
-
-	__C_DBG("__get_consecutive_ports: 33333 \n");
 
 	/* TODO what happens if i cannot bind the ports */
 	while (1) {
@@ -1504,3 +1500,21 @@ struct stream_fd *stream_fd_new(socket_t *fd, struct call *call, const struct lo
 	return sfd;
 }
 
+static void print_interf_qstatus(gpointer key, gpointer value, gpointer user_data) {
+    struct intf_address *intf_addr = (struct intf_address *)key;
+    struct intf_spec *spec = (struct intf_spec *)value;
+    SQueue *q;
+
+    if (key == NULL || value == NULL)
+        return;
+
+    q = &(spec->port_pool.free_ports_queue);
+    ilog(LOG_ERR, "Status queue on interface %s \n", sockaddr_print_buf(&spec->local_address.addr));
+    ilog(LOG_ERR, "      available %d, front %d, rear %d \n\n", q->itemCount, q->front, q->rear);
+}
+
+void port_alloc_status() {
+
+    g_hash_table_foreach(__intf_spec_addr_type_hash, (GHFunc)print_interf_qstatus, NULL);
+
+}
