@@ -112,5 +112,6 @@ INLINE struct local_intf *get_interface_from_address(const struct logical_intf *
 }
 */
 
+void port_alloc_status();
 
 #endif
