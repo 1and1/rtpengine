@@ -640,8 +640,6 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 	if (num_ports == 0)
 		return 0;
 
-	port_alloc_status();
-
 	pp = &spec->port_pool;
 	portsQ = &pp->free_ports_queue;
 
@@ -1504,17 +1502,28 @@ static void print_interf_qstatus(gpointer key, gpointer value, gpointer user_dat
     struct intf_address *intf_addr = (struct intf_address *)key;
     struct intf_spec *spec = (struct intf_spec *)value;
     SQueue *q;
+    pa_data *data = (pa_data *)user_data;
+    int len;
 
     if (key == NULL || value == NULL)
         return;
 
     q = &(spec->port_pool.free_ports_queue);
-    ilog(LOG_ERR, "Status queue on interface %s \n", sockaddr_print_buf(&spec->local_address.addr));
-    ilog(LOG_ERR, "      available %d, front %d, rear %d \n\n", q->itemCount, q->front, q->rear);
+
+    if (user_data != NULL) {
+        //ilog(LOG_ERR, "Status queue on interface %s \n", sockaddr_print_buf(&spec->local_address.addr));
+        //ilog(LOG_ERR, "      available %d, front %d, rear %d \n\n", q->itemCount, q->front, q->rear);
+        len = snprintf(data->print_buf + data->pos, 100, "Status queue on interface %s: \n", sockaddr_print_buf(&spec->local_address.addr));
+        if (len > 0) data->pos += len;
+        len = snprintf(data->print_buf + data->pos, 100,"      available %d, front %d, rear %d \n", q->itemCount, q->front, q->rear);
+        if (len > 0) data->pos += len;
+    }
+    else {
+        ilog(LOG_ERR, "Status queue on interface %s \n", sockaddr_print_buf(&spec->local_address.addr));
+        ilog(LOG_ERR, "      available %d, front %d, rear %d \n\n", q->itemCount, q->front, q->rear);
+    }
 }
 
-void port_alloc_status() {
-
-    g_hash_table_foreach(__intf_spec_addr_type_hash, (GHFunc)print_interf_qstatus, NULL);
-
+void port_alloc_status(void *user_data) {
+    g_hash_table_foreach(__intf_spec_addr_type_hash, (GHFunc)print_interf_qstatus, user_data);
 }

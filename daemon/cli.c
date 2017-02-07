@@ -93,6 +93,10 @@ static void cli_incoming_list_totals(char* buffer, int len, struct callmaster* m
 	u_int64_t num_sessions, min_sess_iv, max_sess_iv;
 	struct request_time offer_iv, answer_iv, delete_iv;
 
+	/* hope this is big enough*/
+	static char port_alloc_buf[600];
+	static pa_data pa_info;
+
 	mutex_lock(&m->totalstats.total_average_lock);
 	avg = m->totalstats.total_average_call_dur;
 	num_sessions = m->totalstats.total_managed_sess;
@@ -199,6 +203,16 @@ static void cli_incoming_list_totals(char* buffer, int len, struct callmaster* m
 	ADJUSTLEN(printlen,outbufend,replybuffer);
 	mutex_unlock(&m->cngs_lock);
 	g_list_free(list);
+
+	pa_info.pos = 0;
+	pa_info.print_buf = port_alloc_buf;
+	port_alloc_status(&pa_info);
+
+	printlen = snprintf(replybuffer,(outbufend-replybuffer), "%s \n", pa_info.print_buf);
+	ADJUSTLEN(printlen,outbufend,replybuffer);
+
+	printlen = snprintf(replybuffer,(outbufend-replybuffer), "\n\n");
+	ADJUSTLEN(printlen,outbufend,replybuffer);
 }
 
 static void cli_incoming_list_maxsessions(char* buffer, int len, struct callmaster* m, char* replybuffer, const char* outbufend) {
