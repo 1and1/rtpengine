@@ -616,6 +616,7 @@ static void release_port(socket_t *r, struct intf_spec *spec) {
 		__C_DBG("port %u is released", port);
 		bit_array_clear(spec->port_pool.ports_used, port);
 		g_atomic_int_inc(&spec->port_pool.free_ports);
+		insert(&(spec->port_pool.free_ports_queue), port);
 	} else {
 		__C_DBG("port %u is NOT released", port);
 	}
