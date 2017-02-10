@@ -1389,6 +1389,7 @@ static void redis_restore_call(struct redis *r, struct callmaster *m, const redi
 	str_init_len(&s, id->str, id->len);
 	//s.s = id->str;
 	//s.len = id->len;
+	// master_lock held
 	c = call_get_or_create(&s, m, type);
 	err = "failed to create call struct";
 	if (!c)
