@@ -628,6 +628,7 @@ static void free_port(socket_t *r, struct intf_spec *spec) {
 
 ////////////////////
 /* puts list of socket_t into "out" num ports == 1 */
+/*
 int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wanted_start_port,
         struct intf_spec *spec)
 {
@@ -661,7 +662,7 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
     if (get_port(sk, port++, spec))
         goto release_restart;
 
-    /* success */
+    // success
     g_atomic_int_set(&pp->last_used, port);
 
     __C_DBG("Opened ports %u.. on interface %s for media relay",
@@ -677,11 +678,10 @@ fail:
             num_ports, sockaddr_print_buf(&spec->local_address.addr));
     return -1;
 }
+*/
 
-
-void update_queue_from_bitarray(SQueue *portsQ, unsigned int *ports_used) {
-    int i;
-    for ()
+void update_queue_from_bitarray(SQueue *q, unsigned int *ba, int ba_port, int ba_stop) {
+    return ;
 }
 
 
@@ -701,10 +701,14 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 	pp = &spec->port_pool;
 	portsQ = &pp->free_ports_queue;
 
+	/*
 	if (portsQ->itemCount != pp->free_ports) {
 	    update_queue_from_bitarray(portsQ, pp->ports_used);
 	}
-
+    */
+	//if (portsQ->itemCount != pp->free_ports) {
+      //  create_queue_from_bitarray(portsQ, pp->ports_used);
+    //}
 
 	/* TODO number of ports problem can happen in the code stemming from release_restart */
 	if (size(portsQ) < num_ports)
