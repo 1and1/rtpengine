@@ -11,7 +11,7 @@
 #include "dtls.h"
 #include "crypto.h"
 #include "socket.h"
-#include "simple_queue.h"
+#include "listarray_queue.h"
 
 
 
@@ -29,7 +29,7 @@ struct port_pool {
 	volatile unsigned int		last_used;
 	volatile unsigned int		free_ports;
 
-	SQueue                  free_ports_queue;
+	LAQueue                  free_ports_queue;
 	unsigned int			min, max;
 };
 struct intf_address {

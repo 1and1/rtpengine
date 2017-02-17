@@ -481,8 +481,8 @@ static void __interface_append(struct intf_config *ifa, sockfamily_t *fam) {
 		spec->port_pool.min = ifa->port_min;
 		spec->port_pool.max = ifa->port_max;
 		spec->port_pool.free_ports = spec->port_pool.max - spec->port_pool.min + 1;
-		qAlloc(&(spec->port_pool.free_ports_queue), spec->port_pool.free_ports);
-		qShuffle(&(spec->port_pool.free_ports_queue), spec->port_pool.min, spec->port_pool.max);
+		laqAlloc(&(spec->port_pool.free_ports_queue), spec->port_pool.free_ports);
+		laqShuffle(&(spec->port_pool.free_ports_queue), spec->port_pool.min, spec->port_pool.max);
 		g_hash_table_insert(__intf_spec_addr_type_hash, &spec->local_address, spec);
 	}
 
@@ -616,7 +616,7 @@ static void release_port(socket_t *r, struct intf_spec *spec) {
 		__C_DBG("port %u is released", port);
 		bit_array_clear(spec->port_pool.ports_used, port);
 		g_atomic_int_inc(&spec->port_pool.free_ports);
-		insert(&(spec->port_pool.free_ports_queue), port);
+		laqEnqueue(&(spec->port_pool.free_ports_queue), port);
 	} else {
 		__C_DBG("port %u is NOT released", port);
 	}
@@ -680,7 +680,7 @@ fail:
 }
 */
 
-void update_queue_from_bitarray(SQueue *q, unsigned int *ba, int ba_port, int ba_stop) {
+void update_queue_from_bitarray(LAQueue *q, unsigned int *ba, int ba_port, int ba_stop) {
     return ;
 }
 
@@ -693,7 +693,7 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 	socket_t *sk;
 	int port;
 	struct port_pool *pp;
-	SQueue *portsQ;
+	LAQueue *portsQ;
 
 	if (num_ports == 0)
 		return 0;
@@ -711,7 +711,7 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
     //}
 
 	/* TODO number of ports problem can happen in the code stemming from release_restart */
-	if (size(portsQ) < num_ports)
+	if (laqSize(portsQ) < num_ports)
 	    goto fail;
 
 	/* TODO what happens if i cannot bind the ports */
@@ -1568,7 +1568,7 @@ struct stream_fd *stream_fd_new(socket_t *fd, struct call *call, const struct lo
 static void print_interf_qstatus(gpointer key, gpointer value, gpointer user_data) {
     struct intf_address *intf_addr = (struct intf_address *)key;
     struct intf_spec *spec = (struct intf_spec *)value;
-    SQueue *q;
+    LAQueue *q;
     pa_data *data = (pa_data *)user_data;
     int len;
 
@@ -1582,12 +1582,13 @@ static void print_interf_qstatus(gpointer key, gpointer value, gpointer user_dat
         //ilog(LOG_ERR, "      available %d, front %d, rear %d \n\n", q->itemCount, q->front, q->rear);
         len = snprintf(data->print_buf + data->pos, 100, "Status queue on interface %s: \n", sockaddr_print_buf(&spec->local_address.addr));
         if (len > 0) data->pos += len;
-        len = snprintf(data->print_buf + data->pos, 100,"      available %d, front %d, rear %d \n", q->itemCount, q->front, q->rear);
+        //len = snprintf(data->print_buf + data->pos, 100,"      available %d, front %d, rear %d \n", q->itemCount, q->front, q->rear);
+        len = snprintf(data->print_buf + data->pos, 100,"      available %d \n", q->itemCount);
         if (len > 0) data->pos += len;
     }
     else {
         ilog(LOG_ERR, "Status queue on interface %s \n", sockaddr_print_buf(&spec->local_address.addr));
-        ilog(LOG_ERR, "      available %d, front %d, rear %d \n\n", q->itemCount, q->front, q->rear);
+        ilog(LOG_ERR, "      available %d \n\n", q->itemCount);
     }
 }
 

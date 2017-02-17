@@ -23,14 +23,14 @@ int laqAlloc(LAQueue *q, int size) {
     q->fullSize = size;
 }
 
-inline  int laqFree(LAQueue *q) {
+int laqFree(LAQueue *q) {
     if (!q)
         return -1;
 
     free(q->nodeArray);
 }
 
-inline int laqShuffle(LAQueue *q, int port_min, int port_max) {
+int laqShuffle(LAQueue *q, int port_min, int port_max) {
     int i;
 
     if (!q)
@@ -41,20 +41,21 @@ inline int laqShuffle(LAQueue *q, int port_min, int port_max) {
     }
 }
 
-inline int laqIsFull(LAQueue *q) {
+int laqIsFull(LAQueue *q) {
    return q->itemCount == q->fullSize;
 }
 
-inline int laqSize(LAQueue *q) {
+int laqSize(LAQueue *q) {
    return q->itemCount;
 }
 
-inline struct node* getmem(LAQueue *q, int data) {
+struct node* getmem(LAQueue *q, int data) {
     return q->nodeArray+data;
 }
 
+// this is push
 //insert link at the last location
-void laqInsertLast(LAQueue *q, int data) {
+void laqEnqueue(LAQueue *q, int data) {
 
    //create a link
    struct node *link = (struct node*) getmem(q, data);
