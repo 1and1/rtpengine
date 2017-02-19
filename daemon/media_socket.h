@@ -85,6 +85,8 @@ INLINE void set_tos(socket_t *s, unsigned int tos) {
 }
 int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wanted_start_port,
 		struct intf_spec *spec);
+socket_t* __get_socket(unsigned int port, struct intf_spec *spec);
+
 int get_consecutive_ports(GQueue *out, unsigned int num_ports, const struct logical_intf *log);
 struct stream_fd *stream_fd_new(socket_t *fd, struct call *call, const struct local_intf *lif);
 

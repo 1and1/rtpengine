@@ -626,64 +626,37 @@ static void free_port(socket_t *r, struct intf_spec *spec) {
 	g_slice_free1(sizeof(*r), r);
 }
 
-////////////////////
 /* puts list of socket_t into "out" num ports == 1 */
-/*
-int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wanted_start_port,
-        struct intf_spec *spec)
+socket_t* __get_socket(unsigned int port, struct intf_spec *spec)
 {
-    int i, cycle = 0;
     socket_t *sk;
-    int port;
     struct port_pool *pp;
-
-    if (num_ports == 0)
-        return 0;
 
     pp = &spec->port_pool;
 
-    __C_DBG("wanted_start_port=%d", wanted_start_port);
-
-    port = wanted_start_port;
-
-    // debug msg if port is in the given interval
-    if (bit_array_isset(pp->ports_used, port)) {
-        __C_DBG("port %d is USED in port pool", port);
-    } else {
-        __C_DBG("port %d is NOOT USED in port pool", port);
-    }
+    __C_DBG("__get_socket(): Looking for port=%d", port);
+    /* port is not in the queue, so it is not free for the taking */
+    if (!laqDelete(&pp->free_ports_queue, port))
+        return NULL;
 
     sk = g_slice_alloc0(sizeof(*sk));
-    // fd=0 is a valid file descriptor that may be closed
-    // accidentally by free_port if previously bounded
     sk->fd = -1;
-    g_queue_push_tail(out, sk);
+    if (get_port(sk, port, spec)) {
+        // fail
+        free_port(sk, spec);
+        ilog(LOG_ERR, "__get_socket(): Failed to get port %d on interface %s for media relay",
+            port, sockaddr_print_buf(&spec->local_address.addr));
+        return -1;
+    }
+    else {
+        // success
+        g_atomic_int_set(&pp->last_used, port);
+        __C_DBG("__get_socket(): Opened port %u.. on interface %s for media relay",
+                port, sockaddr_print_buf(&spec->local_address.addr));
+        return 0;
+    }
 
-    if (get_port(sk, port++, spec))
-        goto release_restart;
-
-    // success
-    g_atomic_int_set(&pp->last_used, port);
-
-    __C_DBG("Opened ports %u.. on interface %s for media relay",
-        ((socket_t *) out->head->data)->local.port, sockaddr_print_buf(&spec->local_address.addr));
-    return 0;
-
-release_restart:
-   sk = g_queue_pop_head(out);
-   free_port(sk, spec);
-
-fail:
-    ilog(LOG_ERR, "Failed to get %u consecutive ports on interface %s for media relay",
-            num_ports, sockaddr_print_buf(&spec->local_address.addr));
-    return -1;
 }
-*/
-
-void update_queue_from_bitarray(LAQueue *q, unsigned int *ba, int ba_port, int ba_stop) {
-    return ;
-}
-
 
 /* puts list of socket_t into "out" */
 int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wanted_start_port,
@@ -701,26 +674,19 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 	pp = &spec->port_pool;
 	portsQ = &pp->free_ports_queue;
 
-	/*
-	if (portsQ->itemCount != pp->free_ports) {
-	    update_queue_from_bitarray(portsQ, pp->ports_used);
-	}
-    */
-	//if (portsQ->itemCount != pp->free_ports) {
-      //  create_queue_from_bitarray(portsQ, pp->ports_used);
-    //}
-
+	ilog(LOG_ERR, "__get_consecutive_ports(): 111");
 	/* TODO number of ports problem can happen in the code stemming from release_restart */
 	if (laqSize(portsQ) < num_ports)
 	    goto fail;
+	ilog(LOG_ERR, "__get_consecutive_ports(): 222");
 
 	/* TODO what happens if i cannot bind the ports */
 	while (1) {
 		__C_DBG("cycle=%d, port=%d", cycle, port);
+		ilog(LOG_ERR, "cycle=%d, port=%d", cycle, port);
 
 		for (i = 0; i < num_ports; i++) {
-			port = removeData(portsQ);
-
+			port = laqDequeue(portsQ)->data;
 			sk = g_slice_alloc0(sizeof(*sk));
 			// fd=0 is a valid file descriptor that may be closed
 			// accidentally by free_port if previously bounded
@@ -731,7 +697,6 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 			    cycle++;
 				goto release_restart;
 			}
-
 		}
 		break;
 release_restart:
@@ -1566,7 +1531,7 @@ struct stream_fd *stream_fd_new(socket_t *fd, struct call *call, const struct lo
 }
 
 static void print_interf_qstatus(gpointer key, gpointer value, gpointer user_data) {
-    struct intf_address *intf_addr = (struct intf_address *)key;
+    //struct intf_address *intf_addr = (struct intf_address *)key;
     struct intf_spec *spec = (struct intf_spec *)value;
     LAQueue *q;
     pa_data *data = (pa_data *)user_data;

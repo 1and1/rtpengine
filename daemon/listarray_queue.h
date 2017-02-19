@@ -50,6 +50,6 @@ struct node* laqDequeue(LAQueue *q);
 struct node* laqDeleteLast(LAQueue *q);
 
 //delete a link with given data
-struct node* laqdelete(LAQueue *q, int data);
+struct node* laqDelete(LAQueue *q, int data);
 
 #endif

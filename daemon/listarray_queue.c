@@ -19,7 +19,7 @@ int laqAlloc(LAQueue *q, int size) {
         return -1;
 
     q->nodeArray = (node*)malloc(size * sizeof(node));
-    q->itemCount = 0;
+    q->itemCount = size;
     q->fullSize = size;
 }
 
@@ -61,7 +61,7 @@ void laqEnqueue(LAQueue *q, int data) {
    struct node *link = (struct node*) getmem(q, data);
    link->data = data;
 
-   if(isEmpty(q)) {
+   if(laqIsEmpty(q)) {
       //make it the last link
       q->last = link;
    } else {
@@ -78,9 +78,15 @@ void laqEnqueue(LAQueue *q, int data) {
 }
 
 //delete first item
-struct node* laqDeleteFirst(LAQueue *q) {
+struct node* laqDequeue(LAQueue *q) {
    //save reference to first link
    struct node *tempLink = q->head;
+
+   if (NULL == q->head) {
+       return NULL;
+   }
+
+   tempLink->next = tempLink->prev = NULL;
 
    //if only one link
    if(q->head->next == NULL){

@@ -1007,7 +1007,6 @@ static int redis_sfds(struct call *c, struct redis_list *sfds) {
 	sockfamily_t *fam;
 	struct logical_intf *lif;
 	struct local_intf *loc;
-	GQueue q = G_QUEUE_INIT;
 	unsigned int loc_uid;
 	struct stream_fd *sfd;
 	socket_t *sock;
@@ -1035,9 +1034,7 @@ static int redis_sfds(struct call *c, struct redis_list *sfds) {
 		if (!loc)
 			return -1;
 
-		if (__get_consecutive_ports(&q, 1, port, loc->spec))
-			return -1;
-		sock = g_queue_pop_head(&q);
+		sock = __get_socket(port, loc->spec);
 		if (!sock)
 			return -1;
 		sfd = stream_fd_new(sock, c, loc);
