@@ -481,7 +481,9 @@ static void __interface_append(struct intf_config *ifa, sockfamily_t *fam) {
 		spec->port_pool.min = ifa->port_min;
 		spec->port_pool.max = ifa->port_max;
 		spec->port_pool.free_ports = spec->port_pool.max - spec->port_pool.min + 1;
-		laqAlloc(&(spec->port_pool.free_ports_queue), spec->port_pool.free_ports);
+		///* TODO to be called as qAlloc(LAQueue *q, MAX_PORTS) */
+		laqAlloc(&(spec->port_pool.free_ports_queue), 65535);
+		//laqAlloc(&(spec->port_pool.free_ports_queue), spec->port_pool.free_ports);
 		laqShuffle(&(spec->port_pool.free_ports_queue), spec->port_pool.min, spec->port_pool.max);
 		g_hash_table_insert(__intf_spec_addr_type_hash, &spec->local_address, spec);
 	}
@@ -667,6 +669,7 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 	int port;
 	struct port_pool *pp;
 	LAQueue *portsQ;
+	node* p;
 
 	if (num_ports == 0)
 		return 0;

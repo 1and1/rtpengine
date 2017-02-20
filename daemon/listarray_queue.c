@@ -1,4 +1,6 @@
+#include <stdio.h>
 #include "listarray_queue.h"
+
 
 //is list empty
 inline int laqIsEmpty(LAQueue *q) {
@@ -19,7 +21,7 @@ int laqAlloc(LAQueue *q, int size) {
         return -1;
 
     q->nodeArray = (node*)malloc(size * sizeof(node));
-    q->itemCount = size;
+    q->itemCount = 0;
     q->fullSize = size;
 }
 
@@ -36,8 +38,9 @@ int laqShuffle(LAQueue *q, int port_min, int port_max) {
     if (!q)
         return -1;
 
-    for (i=0; i<q->fullSize; i++) {
-        q->nodeArray[i].data = i;
+    for (i=port_min; i<=port_max; i++) {
+        //q->nodeArray[i].data = i;
+        laqEnqueue(q, i);
     }
 }
 
@@ -63,6 +66,7 @@ void laqEnqueue(LAQueue *q, int data) {
 
    if(laqIsEmpty(q)) {
       //make it the last link
+      q->head = link;
       q->last = link;
    } else {
       //make link a new last link
@@ -83,6 +87,7 @@ struct node* laqDequeue(LAQueue *q) {
    struct node *tempLink = q->head;
 
    if (NULL == q->head) {
+       fprintf(stderr, "laqDequeue(): empty queue");
        return NULL;
    }
 
