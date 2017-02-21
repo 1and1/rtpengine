@@ -544,6 +544,44 @@ void interfaces_exclude_port(unsigned int port) {
 	g_list_free(vals);
 }
 
+/* for now init all interfaces; should only be for local interface */
+void interfaces_rebuild_portqueue(GQueue *interfaces) {
+    GList *l;
+    struct intf_config *ifa;
+    sockfamily_t *fam;
+
+    ifa = interfaces->head->data;
+
+    for (l = interfaces->head; l; l = l->next) {
+        ifa = l->data;
+    }
+///////////
+    static void __interface_append(struct intf_config *ifa, sockfamily_t *fam) {
+
+        GQueue *q;
+        struct local_intf *ifc;
+        struct intf_spec *spec;
+
+        struct logical_intf *lif;
+        lif = get_logical_interface(&ifa->name, fam, 0);
+        if (!lif) {
+            mesaj erorare
+        }
+
+        if (!lif) {
+            lif = g_slice_alloc0(sizeof(*lif));
+            lif->name = ifa->name;
+            lif->preferred_family = fam;
+            lif->addr_hash = g_hash_table_new(__addr_type_hash, __addr_type_eq);
+            g_hash_table_insert(__logical_intf_name_family_hash, lif, lif);
+            if (ifa->local_address.addr.family == fam) {
+                q = __interface_list_for_family(fam);
+                g_queue_push_tail(q, lif);
+            }
+        }
+////////////
+}
+
 struct local_intf *get_interface_address(const struct logical_intf *lif, sockfamily_t *fam) {
 	const GQueue *q;
 
@@ -680,13 +718,8 @@ fail:
 }
 */
 
-void update_queue_from_bitarray(SQueue *q, unsigned int *ba, int ba_port, int ba_stop) {
-    return ;
-}
-
-
 /* puts list of socket_t into "out" */
-int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wanted_start_port,
+int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wanted_port,
 		struct intf_spec *spec)
 {
 	int i, cycle = 0;
@@ -701,6 +734,7 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 	pp = &spec->port_pool;
 	portsQ = &pp->free_ports_queue;
 
+	pp->ports_used;
 	/*
 	if (portsQ->itemCount != pp->free_ports) {
 	    update_queue_from_bitarray(portsQ, pp->ports_used);
@@ -719,7 +753,12 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 		__C_DBG("cycle=%d, port=%d", cycle, port);
 
 		for (i = 0; i < num_ports; i++) {
-			port = removeData(portsQ);
+
+			if (wanted_port)
+			    port = wanted_port;
+			else
+                port = removeData(portsQ);
+
 
 			sk = g_slice_alloc0(sizeof(*sk));
 			// fd=0 is a valid file descriptor that may be closed

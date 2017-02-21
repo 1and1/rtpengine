@@ -1,5 +1,5 @@
 #include "simple_queue.h"
-
+#include "aux.h"
 
 inline int qAlloc(SQueue *q, int size) {
 	if (!q)
@@ -26,6 +26,16 @@ inline int qShuffle(SQueue *q, int port_min, int port_max) {
     q->rear = q->fullSize-1;
     q->itemCount = q->fullSize;
 
+}
+
+inline int qClear(SQueue *q) {
+    int i;
+
+    if (!q)
+        return -1;
+
+    q->front = q->rear = q->itemCount = 0;
+    memset(q->intArray, 0, q->fullSize * sizeof(int));
 }
 
 inline  int qFree(SQueue *q, int size) {
@@ -73,4 +83,22 @@ inline int removeData(SQueue *q) {
 
    q->itemCount--;
    return data;
+}
+
+/* rebuild queue from bit array */
+/* shuffling algo is not yet implemented */
+/* src_ba: 1 means port is in use */
+//TBD check volatile
+void rebuild_queue(SQueue *dst_q, volatile unsigned int *src_ba, unsigned int start_port, unsigned int stop_port) {
+    unsigned int port;
+    if (NULL == dst_q)
+        return;
+
+    qClear(dst_q);
+
+    for (port=start_port; port<=stop_port; port++) {
+        if (!bit_array_isset(src_ba, port)) {
+            insert(dst_q, port);
+        }
+    }
 }

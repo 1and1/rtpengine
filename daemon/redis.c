@@ -1571,6 +1571,10 @@ int redis_restore(struct callmaster *m, struct redis *r) {
 	}
 
 	g_thread_pool_free(gtp, FALSE, TRUE);
+
+	/* foreach logical/ local interface do rebuild_quuee */
+	log = g_hash_table_lookup(__logical_intf_name_family_hash, &d);
+
 	while ((r = g_queue_pop_head(&ctx.r_q)))
 		redis_close(r);
 	ret = 0;
