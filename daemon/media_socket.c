@@ -62,6 +62,7 @@ static int call_avpf2avp_rtcp(str *s, struct packet_stream *);
 static int call_savpf2avp_rtcp(str *s, struct packet_stream *);
 //static int call_savpf2savp_rtcp(str *s, struct packet_stream *);
 
+static void __interfaces_rebuild_iterator(gpointer key, gpointer value, gpointer user_data);
 
 
 
@@ -544,36 +545,8 @@ void interfaces_exclude_port(unsigned int port) {
 	g_list_free(vals);
 }
 
-void interfaces_rebuild_portqueue(GQueue *interfaces) {
-    GList *l;
-    struct local_intf *ifc;
-    struct port_pool *pp;
-    struct logical_intf *lif;
-    struct intf_config *ifa;
-
-    /* we presume we only populate the first logical interface otherwise see interfaces_init() */
-    ifa = interfaces->head->data;
-    if (!ifa) {
-        ilog(LOG_ERR, "interfaces_rebuild_portqueue(): no local interface");
-        return;
-    }
-
-    lif = get_logical_interface(&ifa->name, NULL, 0);
-    if (!lif) {
-        ilog(LOG_ERR, "interfaces_rebuild_portqueue(): no logical interface");
-        return;
-    }
-
-    for (l = lif->list.head; l; l = l->next) {
-        ifc = l->data;
-        if (ifc && ifc->spec) {
-            pp = &ifc->spec->port_pool;
-            rebuild_queue(&pp->free_ports_queue, pp->ports_used, pp->min, pp->max);
-        }
-        else {
-            ilog(LOG_ERR, "interfaces_rebuild_portqueue(): no local interface attached to logical interfaces");
-        }
-    }
+void interfaces_rebuild_portqueue() {
+    g_hash_table_foreach(__intf_spec_addr_type_hash, (GHFunc)__interfaces_rebuild_iterator, NULL);
 }
 
 struct local_intf *get_interface_address(const struct logical_intf *lif, sockfamily_t *fam) {
@@ -1533,6 +1506,18 @@ struct stream_fd *stream_fd_new(socket_t *fd, struct call *call, const struct lo
 	poller_add_item(po, &pi);
 
 	return sfd;
+}
+
+
+static void __interfaces_rebuild_iterator(gpointer key, gpointer value, gpointer user_data) {
+    struct intf_spec *spec = (struct intf_spec *)value;
+    struct port_pool *pp;
+
+    if (key == NULL || value == NULL)
+        return;
+
+    pp = &spec->port_pool;
+    rebuild_queue(pp->free_ports_queue, pp->ports_used, pp->min, pp->max);
 }
 
 static void print_interf_qstatus(gpointer key, gpointer value, gpointer user_data) {
