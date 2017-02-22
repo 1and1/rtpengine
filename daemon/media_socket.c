@@ -658,65 +658,11 @@ static void free_port(socket_t *r, struct intf_spec *spec) {
 	g_slice_free1(sizeof(*r), r);
 }
 
-////////////////////
-/* puts list of socket_t into "out" num ports == 1 */
-/*
-int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wanted_start_port,
-        struct intf_spec *spec)
-{
-    int i, cycle = 0;
-    socket_t *sk;
-    int port;
-    struct port_pool *pp;
-
-    if (num_ports == 0)
-        return 0;
-
-    pp = &spec->port_pool;
-
-    __C_DBG("wanted_start_port=%d", wanted_start_port);
-
-    port = wanted_start_port;
-
-    // debug msg if port is in the given interval
-    if (bit_array_isset(pp->ports_used, port)) {
-        __C_DBG("port %d is USED in port pool", port);
-    } else {
-        __C_DBG("port %d is NOOT USED in port pool", port);
-    }
-
-    sk = g_slice_alloc0(sizeof(*sk));
-    // fd=0 is a valid file descriptor that may be closed
-    // accidentally by free_port if previously bounded
-    sk->fd = -1;
-    g_queue_push_tail(out, sk);
-
-    if (get_port(sk, port++, spec))
-        goto release_restart;
-
-    // success
-    g_atomic_int_set(&pp->last_used, port);
-
-    __C_DBG("Opened ports %u.. on interface %s for media relay",
-        ((socket_t *) out->head->data)->local.port, sockaddr_print_buf(&spec->local_address.addr));
-    return 0;
-
-release_restart:
-   sk = g_queue_pop_head(out);
-   free_port(sk, spec);
-
-fail:
-    ilog(LOG_ERR, "Failed to get %u consecutive ports on interface %s for media relay",
-            num_ports, sockaddr_print_buf(&spec->local_address.addr));
-    return -1;
-}
-*/
-
 /* puts list of socket_t into "out" */
 int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wanted_port,
 		struct intf_spec *spec)
 {
-	int i, cycle = 0;
+	int i;
 	socket_t *sk;
 	int port;
 	struct port_pool *pp;
@@ -733,48 +679,34 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 	if (portsQ->itemCount != pp->free_ports) {
 	    update_queue_from_bitarray(portsQ, pp->ports_used);
 	}
-    */
-	//if (portsQ->itemCount != pp->free_ports) {
-      //  create_queue_from_bitarray(portsQ, pp->ports_used);
-    //}
 
 	/* TODO number of ports problem can happen in the code stemming from release_restart */
 	if (size(portsQ) < num_ports)
 	    goto fail;
 
 	/* TODO what happens if i cannot bind the ports */
-	while (1) {
-		__C_DBG("cycle=%d, port=%d", cycle, port);
+    __C_DBG("__get_consecutive_ports() Attempting to open port=%d", port);
 
-		for (i = 0; i < num_ports; i++) {
+    for (i = 0; i < num_ports; i++) {
 
-			if (wanted_port)
-			    port = wanted_port;
-			else
-                port = removeData(portsQ);
+        if (wanted_port)
+            port = wanted_port;
+        else
+            port = removeData(portsQ);
 
 
-			sk = g_slice_alloc0(sizeof(*sk));
-			// fd=0 is a valid file descriptor that may be closed
-			// accidentally by free_port if previously bounded
-			sk->fd = -1;
-			g_queue_push_tail(out, sk);
+        sk = g_slice_alloc0(sizeof(*sk));
+        // fd=0 is a valid file descriptor that may be closed
+        // accidentally by free_port if previously bounded
+        sk->fd = -1;
+        g_queue_push_tail(out, sk);
 
-			if (get_port(sk, port, spec)) {
-			    cycle++;
-				goto release_restart;
-			}
-
-		}
-		break;
-release_restart:
-		while ((sk = g_queue_pop_head(out)))
-			free_port(sk, spec);
-
-		if (cycle >= 2)
-			goto fail;
-
-	}
+        if (get_port(sk, port, spec)) {
+            while ((sk = g_queue_pop_head(out)))
+              free_port(sk, spec);
+            goto fail;
+        }
+    }
 
 	/* success */
 	g_atomic_int_set(&pp->last_used, port);
