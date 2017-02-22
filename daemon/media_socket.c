@@ -544,42 +544,36 @@ void interfaces_exclude_port(unsigned int port) {
 	g_list_free(vals);
 }
 
-/* for now init all interfaces; should only be for local interface */
 void interfaces_rebuild_portqueue(GQueue *interfaces) {
     GList *l;
+    struct local_intf *ifc;
+    struct port_pool *pp;
+    struct logical_intf *lif;
     struct intf_config *ifa;
-    sockfamily_t *fam;
 
+    /* we presume we only populate the first logical interface otherwise see interfaces_init() */
     ifa = interfaces->head->data;
-
-    for (l = interfaces->head; l; l = l->next) {
-        ifa = l->data;
+    if (!ifa) {
+        ilog(LOG_ERR, "interfaces_rebuild_portqueue(): no local interface");
+        return;
     }
-///////////
-    static void __interface_append(struct intf_config *ifa, sockfamily_t *fam) {
 
-        GQueue *q;
-        struct local_intf *ifc;
-        struct intf_spec *spec;
+    lif = get_logical_interface(&ifa->name, NULL, 0);
+    if (!lif) {
+        ilog(LOG_ERR, "interfaces_rebuild_portqueue(): no logical interface");
+        return;
+    }
 
-        struct logical_intf *lif;
-        lif = get_logical_interface(&ifa->name, fam, 0);
-        if (!lif) {
-            mesaj erorare
+    for (l = lif->list.head; l; l = l->next) {
+        ifc = l->data;
+        if (ifc && ifc->spec) {
+            pp = &ifc->spec->port_pool;
+            rebuild_queue(&pp->free_ports_queue, pp->ports_used, pp->min, pp->max);
         }
-
-        if (!lif) {
-            lif = g_slice_alloc0(sizeof(*lif));
-            lif->name = ifa->name;
-            lif->preferred_family = fam;
-            lif->addr_hash = g_hash_table_new(__addr_type_hash, __addr_type_eq);
-            g_hash_table_insert(__logical_intf_name_family_hash, lif, lif);
-            if (ifa->local_address.addr.family == fam) {
-                q = __interface_list_for_family(fam);
-                g_queue_push_tail(q, lif);
-            }
+        else {
+            ilog(LOG_ERR, "interfaces_rebuild_portqueue(): no local interface attached to logical interfaces");
         }
-////////////
+    }
 }
 
 struct local_intf *get_interface_address(const struct logical_intf *lif, sockfamily_t *fam) {
