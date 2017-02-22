@@ -645,6 +645,8 @@ no_kernel:
 		if (redis_restore(ctx->m, mc.redis))
 			die("Refusing to continue without working Redis database");
 
+		interfaces_rebuild_portqueue(&interfaces);
+
 		// stop redis restore timer
 		gettimeofday(&redis_stop, NULL);
 
