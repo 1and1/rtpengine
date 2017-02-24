@@ -662,11 +662,13 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 
     for (i = 0; i < num_ports; i++) {
 
-        if (wanted_port)
+        if (wanted_port) {
             port = wanted_port;
-        else
+        }
+        else {
             port = removeData(portsQ);
-
+            __C_DBG("__get_consecutive_ports()removeData=%d", port);
+        }
 
         sk = g_slice_alloc0(sizeof(*sk));
         // fd=0 is a valid file descriptor that may be closed
@@ -683,6 +685,8 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 
 	/* success */
 	g_atomic_int_set(&pp->last_used, port);
+
+	port_alloc_status(NULL);
 
 	__C_DBG("Opened ports %u.. on interface %s for media relay",
 		((socket_t *) out->head->data)->local.port, sockaddr_print_buf(&spec->local_address.addr));
