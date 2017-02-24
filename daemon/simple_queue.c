@@ -10,13 +10,14 @@ inline int qAlloc(SQueue *q, int size) {
 	q->rear = -1;
 	q->itemCount = 0;
 	q->fullSize = size;
+	return 0;
 }
 
-inline int qShuffle(SQueue *q, int port_min, int port_max) {
+inline void qShuffle(SQueue *q, int port_min, int port_max) {
     int i;
 
     if (!q)
-        return -1;
+        return ;
 
     for (i=0; i<q->fullSize; i++) {
         q->intArray[i] = port_min + i;
@@ -29,18 +30,18 @@ inline int qShuffle(SQueue *q, int port_min, int port_max) {
 }
 
 inline int qClear(SQueue *q) {
-    int i;
 
     if (!q)
         return -1;
 
     q->front = q->rear = q->itemCount = 0;
     memset(q->intArray, 0, q->fullSize * sizeof(int));
+    return 0;
 }
 
-inline  int qFree(SQueue *q, int size) {
+inline void qFree(SQueue *q, int size) {
 	if (!q)
-		return -1;
+		return;
 
 	free(q->intArray);
 }
@@ -62,7 +63,6 @@ inline int size(SQueue *q) {
 }
 
 inline void insert(SQueue *q, int data) {
-
    if(!isFull(q)) {
 
       if(q->rear == q->fullSize-1) {
@@ -75,14 +75,19 @@ inline void insert(SQueue *q, int data) {
 }
 
 inline int removeData(SQueue *q) {
-   int data = q->intArray[q->front++];
+   int data = -1;
 
-   if(q->front == q->fullSize) {
-      q->front = 0;
+   if(!isEmpty(q)) {
+       data = q->intArray[q->front++];
+
+       if(q->front == q->fullSize) {
+          q->front = 0;
+       }
+
+       q->itemCount--;
    }
-
-   q->itemCount--;
    return data;
+
 }
 
 /* rebuild queue from bit array */
