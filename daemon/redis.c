@@ -387,9 +387,6 @@ int redis_async_context_alloc(struct callmaster *cm) {
 
 	// alloc async context
 	cm->conf.redis_notify_async_context = redisAsyncConnect(r->host, r->endpoint.port);
-	if (cm->conf.redis_notify_async_context && cm->conf.redis_notify_async_context->ev.data != NULL )
-	    rlog(LOG_ERROR, "redis_async_context_alloc() ev.data is NOT NULL after connect");
-
 	if (!cm->conf.redis_notify_async_context) {
 		rlog(LOG_ERROR, "redis_notify_async_context can't create new");
 		return -1;
@@ -399,17 +396,10 @@ int redis_async_context_alloc(struct callmaster *cm) {
 		return -1;
 	}
 
-	if (cm->conf.redis_notify_async_context && cm->conf.redis_notify_async_context->ev.data != NULL )
-        rlog(LOG_ERROR, "redis_async_context_alloc() ev.data is NOT NULL somewhere in between");
-
-
 	if (redisAsyncSetDisconnectCallback(cm->conf.redis_notify_async_context, redis_async_context_disconnect) != REDIS_OK) {
 		rlog(LOG_ERROR, "redis_notify_async_context can't set disconnect callback");
 		return -1;
 	}
-
-	if (cm->conf.redis_notify_async_context && cm->conf.redis_notify_async_context->ev.data != NULL )
-	    rlog(LOG_ERROR, "redis_async_context_alloc() ev.data is NOT NULL afterasync context");
 
 	return 0;
 }
@@ -623,7 +613,6 @@ void redis_notify_loop(void *d) {
 	// initial redis_notify
 	if (redis_check_conn(r) == REDIS_STATE_CONNECTED) {
 		redis_notify_return = redis_notify(cm);
-		ilog(LOG_ERROR, "redis_notify_loop() initial redis_notify return=%d", redis_notify_return);
 	}
 
 	// loop redis_notify => in case of lost connection
@@ -639,7 +628,6 @@ void redis_notify_loop(void *d) {
 		if (redis_check_conn(r) == REDIS_STATE_RECONNECTED || redis_notify_return < 0) {
 			// alloc new redis async context upon redis breakdown
 			if (redis_async_context_alloc(cm) < 0) {
-			    ilog(LOG_ERROR, "redis_notify_loop() redis_async_context_alloc <<<<< 0 ");
 				continue;
 			}
 
@@ -1931,7 +1919,9 @@ static void redis_restore_call(struct redis *r, struct callmaster *m, const str 
 	const char *err;
 	int i;
 
+
 	c = call_get_or_create(id, m, type);
+
 	err = "failed to create call struct";
 	if (!c)
 		goto err1;
@@ -2124,7 +2114,6 @@ int redis_restore(struct callmaster *m, struct redis *r) {
 	}
 
 	g_thread_pool_free(gtp, FALSE, TRUE);
-
 	while ((r = g_queue_pop_head(&ctx.r_q)))
 		redis_close(r);
 	ret = 0;
