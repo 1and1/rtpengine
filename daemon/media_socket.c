@@ -482,8 +482,8 @@ static void __interface_append(struct intf_config *ifa, sockfamily_t *fam) {
 		spec->port_pool.min = ifa->port_min;
 		spec->port_pool.max = ifa->port_max;
 		spec->port_pool.free_ports = spec->port_pool.max - spec->port_pool.min + 1;
-		qAlloc(&(spec->port_pool.free_ports_queue), spec->port_pool.free_ports);
-		qShuffle(&(spec->port_pool.free_ports_queue), spec->port_pool.min, spec->port_pool.max);
+		sq_alloc(&(spec->port_pool.free_ports_queue), spec->port_pool.free_ports);
+		sq_shuffle(&(spec->port_pool.free_ports_queue), spec->port_pool.min, spec->port_pool.max);
 		g_hash_table_insert(__intf_spec_addr_type_hash, &spec->local_address, spec);
 	}
 
@@ -622,7 +622,7 @@ static void release_port(socket_t *r, struct intf_spec *spec) {
 		__C_DBG("port %u is released", port);
 		bit_array_clear(spec->port_pool.ports_used, port);
 		g_atomic_int_inc(&spec->port_pool.free_ports);
-		insert(&(spec->port_pool.free_ports_queue), port);
+		sq_push_tail(&(spec->port_pool.free_ports_queue), port);
 	} else {
 		__C_DBG("port %u is NOT released", port);
 	}
@@ -644,7 +644,7 @@ int __get_specific_port(GQueue *out, unsigned int wanted_port, struct intf_spec 
     pp = &spec->port_pool;
     portsQ = &pp->free_ports_queue;
 
-    if (size(portsQ) < 1)
+    if (sq_size(portsQ) < 1)
         goto fail;
 
     /* TODO what happens if i cannot bind the ports */
@@ -690,7 +690,7 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, struct intf_spe
     pp = &spec->port_pool;
     portsQ = &pp->free_ports_queue;
 
-    if (size(portsQ) < num_ports)
+    if (sq_size(portsQ) < num_ports)
         goto fail;
 
     /* Cycles through the "portsQ" to insert num_ports consecutive ports into "out" queue.
@@ -699,11 +699,11 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, struct intf_spe
      * The algo continues until "ports_allocated" or each port in "portsQ" has been processed.
      * */
     processed_ports = ports_allocated = 0;
-    queue_size = size(portsQ);
+    queue_size = sq_size(portsQ);
     while (!ports_allocated && (processed_ports < queue_size)) {
 
         for (ports_allocated = 1, i = 0; i < num_ports; i++) {
-            port = removeData(portsQ);
+            port = sq_pop_head(portsQ);
             processed_ports++;
             __C_DBG("__get_consecutive_ports()removeData=%d", port);
             sk = g_slice_alloc0(sizeof(*sk));
@@ -716,13 +716,13 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, struct intf_spe
                 ports_allocated = 0;
                 while ((sk = g_queue_pop_head(out))) {
                   free_port(sk, spec);
-                  insert(portsQ, port);
+                  sq_push_tail(portsQ, port);
                 }
 
-                if (peek(portsQ) % 2 == 1) {
-                    port = removeData(portsQ);
+                if (sq_peek(portsQ) % 2 == 1) {
+                    port = sq_pop_head(portsQ);
                     processed_ports++;
-                    insert(portsQ, port);
+                    sq_push_tail(portsQ, port);
                 }
                 break;
             }
@@ -1570,7 +1570,7 @@ static void __interfaces_rebuild_iterator(gpointer key, gpointer value, gpointer
 
     pp = &spec->port_pool;
 
-    rebuild_queue(&pp->free_ports_queue, pp->ports_used, pp->min, pp->max);
+    sq_rebuild_from_ba(&pp->free_ports_queue, pp->ports_used, pp->min, pp->max);
 }
 
 static void print_interf_qstatus(gpointer key, gpointer value, gpointer user_data) {

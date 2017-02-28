@@ -15,14 +15,16 @@ typedef struct SQueue {
 	int itemCount;
 } SQueue;
 
-int qAlloc(SQueue *q, int size);
-void qShuffle(SQueue *q, int port_min, int port_max);
-void qFree(SQueue *q, int size);
-int peek(SQueue *q);
-int isEmpty(SQueue *q);
-int isFull(SQueue *q);
-int size(SQueue *q);
-void insert(SQueue *q, int data);
-int removeData(SQueue *q);
-int qClear(SQueue *q);
+int sq_alloc(SQueue *q, int size);
+void sq_shuffle(SQueue *q, int port_min, int port_max);
+void sq_free(SQueue *q, int size);
+int sq_peek(SQueue *q);
+int sq_is_empty(SQueue *q);
+int sq_is_full(SQueue *q);
+int sq_size(SQueue *q);
+void sq_push_tail(SQueue *q, int data);
+int sq_pop_head(SQueue *q);
+int sq_clear(SQueue *q);
+void sq_rebuild_from_ba(SQueue *dst_q, volatile unsigned int *src_ba, unsigned int start_port, unsigned int stop_port);
+
 #endif

@@ -1,7 +1,7 @@
 #include "simple_queue.h"
 #include "aux.h"
 
-inline int qAlloc(SQueue *q, int size) {
+inline int sq_alloc(SQueue *q, int size) {
 	if (!q)
 		return -1;
 
@@ -13,7 +13,7 @@ inline int qAlloc(SQueue *q, int size) {
 	return 0;
 }
 
-inline void qShuffle(SQueue *q, int port_min, int port_max) {
+inline void sq_shuffle(SQueue *q, int port_min, int port_max) {
     int i;
 
     if (!q)
@@ -29,7 +29,7 @@ inline void qShuffle(SQueue *q, int port_min, int port_max) {
 
 }
 
-inline int qClear(SQueue *q) {
+inline int sq_clear(SQueue *q) {
 
     if (!q)
         return -1;
@@ -39,14 +39,14 @@ inline int qClear(SQueue *q) {
     return 0;
 }
 
-inline void qFree(SQueue *q, int size) {
+inline void sq_free(SQueue *q, int size) {
 	if (!q)
 		return;
 
 	free(q->intArray);
 }
 
-inline int peek(SQueue *q) {
+inline int sq_peek(SQueue *q) {
    return q->intArray[q->front];
 }
 
@@ -54,16 +54,16 @@ inline int isEmpty(SQueue *q) {
    return q->itemCount == 0;
 }
 
-inline int isFull(SQueue *q) {
+inline int sq_is_full(SQueue *q) {
    return q->itemCount == q->fullSize;
 }
 
-inline int size(SQueue *q) {
+inline int sq_size(SQueue *q) {
    return q->itemCount;
 }
 
-inline void insert(SQueue *q, int data) {
-   if(!isFull(q)) {
+inline void sq_push_tail(SQueue *q, int data) {
+   if(!sq_is_full(q)) {
 
       if(q->rear == q->fullSize-1) {
          q->rear = -1;
@@ -74,7 +74,7 @@ inline void insert(SQueue *q, int data) {
    }
 }
 
-inline int removeData(SQueue *q) {
+inline int sq_pop_head(SQueue *q) {
    int data = -1;
 
    if(!isEmpty(q)) {
@@ -94,17 +94,17 @@ inline int removeData(SQueue *q) {
 /* shuffling algo is not yet implemented */
 /* src_ba: 1 means port is in use */
 //TBD check volatile
-void rebuild_queue(SQueue *dst_q, volatile unsigned int *src_ba, unsigned int start_port, unsigned int stop_port) {
+void sq_rebuild_from_ba(SQueue *dst_q, volatile unsigned int *src_ba, unsigned int start_port, unsigned int stop_port) {
     unsigned int port;
     if (NULL == dst_q)
         return;
 
 
-    qClear(dst_q);
+    sq_clear(dst_q);
 
     for (port=start_port; port<=stop_port; port++) {
         if (!bit_array_isset(src_ba, port)) {
-            insert(dst_q, port);
+            sq_push_tail(dst_q, port);
         }
 
     }
