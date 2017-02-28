@@ -546,6 +546,7 @@ void interfaces_exclude_port(unsigned int port) {
 }
 
 void interfaces_rebuild_portqueue() {
+    ilog(LOG_ERR, "interfaces_rebuild_portqueue()");
     g_hash_table_foreach(__intf_spec_addr_type_hash, (GHFunc)__interfaces_rebuild_iterator, NULL);
 }
 
@@ -652,7 +653,7 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 	if (portsQ->itemCount != pp->free_ports) {
 	    update_queue_from_bitarray(portsQ, pp->ports_used);
 	}
-
+    */
 	/* TODO number of ports problem can happen in the code stemming from release_restart */
 	if (size(portsQ) < num_ports)
 	    goto fail;
@@ -1512,7 +1513,6 @@ struct stream_fd *stream_fd_new(socket_t *fd, struct call *call, const struct lo
 	return sfd;
 }
 
-
 static void __interfaces_rebuild_iterator(gpointer key, gpointer value, gpointer user_data) {
     struct intf_spec *spec = (struct intf_spec *)value;
     struct port_pool *pp;
@@ -1521,7 +1521,8 @@ static void __interfaces_rebuild_iterator(gpointer key, gpointer value, gpointer
         return;
 
     pp = &spec->port_pool;
-    rebuild_queue(pp->free_ports_queue, pp->ports_used, pp->min, pp->max);
+
+    rebuild_queue(&pp->free_ports_queue, pp->ports_used, pp->min, pp->max);
 }
 
 static void print_interf_qstatus(gpointer key, gpointer value, gpointer user_data) {

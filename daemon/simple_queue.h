@@ -22,7 +22,7 @@ int peek(SQueue *q);
 int isEmpty(SQueue *q);
 int isFull(SQueue *q);
 int size(SQueue *q);
-void insert(SQueue *q, int data) ;
-int removeData(SQueue *q) ;
-
+void insert(SQueue *q, int data);
+int removeData(SQueue *q);
+int qClear(SQueue *q);
 #endif

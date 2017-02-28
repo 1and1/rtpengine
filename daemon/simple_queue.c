@@ -99,11 +99,13 @@ void rebuild_queue(SQueue *dst_q, volatile unsigned int *src_ba, unsigned int st
     if (NULL == dst_q)
         return;
 
+
     qClear(dst_q);
 
     for (port=start_port; port<=stop_port; port++) {
         if (!bit_array_isset(src_ba, port)) {
             insert(dst_q, port);
         }
+
     }
 }
