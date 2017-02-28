@@ -84,8 +84,8 @@ int is_local_endpoint(const struct intf_address *addr, unsigned int port);
 INLINE void set_tos(socket_t *s, unsigned int tos) {
 	s->family->tos(s, tos);
 }
-int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wanted_start_port,
-		struct intf_spec *spec);
+int __get_consecutive_ports(GQueue *out, unsigned int num_ports, struct intf_spec *spec);
+int __get_specific_port(GQueue *out, unsigned int wanted_port, struct intf_spec *spec);
 int get_consecutive_ports(GQueue *out, unsigned int num_ports, const struct logical_intf *log);
 struct stream_fd *stream_fd_new(socket_t *fd, struct call *call, const struct local_intf *lif);
 
