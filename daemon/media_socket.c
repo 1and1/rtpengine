@@ -1586,11 +1586,9 @@ static void print_interf_qstatus(gpointer key, gpointer value, gpointer user_dat
     q = &(spec->port_pool.free_ports_queue);
 
     if (user_data != NULL) {
-        //ilog(LOG_ERR, "Status queue on interface %s \n", sockaddr_print_buf(&spec->local_address.addr));
-        //ilog(LOG_ERR, "      available %d, front %d, rear %d \n\n", q->itemCount, q->front, q->rear);
-        len = snprintf(data->print_buf + data->pos, 100, "Status queue on interface %s: \n", sockaddr_print_buf(&spec->local_address.addr));
+        len = snprintf(data->print_buf + data->pos, data->print_buf_sz - data->pos, "Status queue on interface %s: \n", sockaddr_print_buf(&spec->local_address.addr));
         if (len > 0) data->pos += len;
-        len = snprintf(data->print_buf + data->pos, 100,"      available %d, front %d, rear %d \n", q->itemCount, q->front, q->rear);
+        len = snprintf(data->print_buf + data->pos, data->print_buf_sz - data->pos,"      available %d, front %d, rear %d \n", q->itemCount, q->front, q->rear);
         if (len > 0) data->pos += len;
     }
     else {

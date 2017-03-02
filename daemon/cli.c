@@ -92,9 +92,7 @@ static void cli_incoming_list_totals(char* buffer, int len, struct callmaster* m
 	struct timeval avg, calls_dur_iv;
 	u_int64_t num_sessions, min_sess_iv, max_sess_iv;
 	struct request_time offer_iv, answer_iv, delete_iv;
-
-	/* hope this is big enough*/
-	static char port_alloc_buf[600];
+	static char port_alloc_buf[1000];
 	static pa_data pa_info;
 
 	mutex_lock(&m->totalstats.total_average_lock);
@@ -205,7 +203,9 @@ static void cli_incoming_list_totals(char* buffer, int len, struct callmaster* m
 	g_list_free(list);
 
 	pa_info.pos = 0;
+	memset(port_alloc_buf, 0, sizeof(port_alloc_buf));
 	pa_info.print_buf = port_alloc_buf;
+	pa_info.print_buf_sz = sizeof(port_alloc_buf);
 	port_alloc_status(&pa_info);
 
 	printlen = snprintf(replybuffer,(outbufend-replybuffer), "%s \n", pa_info.print_buf);
