@@ -34,7 +34,8 @@ inline int sq_clear(SQueue *q) {
     if (!q)
         return -1;
 
-    q->front = q->rear = q->itemCount = 0;
+    q->front = q->itemCount = 0;
+    q->rear = -1;
     memset(q->intArray, 0, q->fullSize * sizeof(int));
     return 0;
 }
