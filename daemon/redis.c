@@ -775,13 +775,13 @@ INLINE char* json_reader_get_string_value_uri_enc(JsonReader *root_reader, int *
 // stolen from libhiredis
 /* Create a reply object */
 INLINE redisReply *createReplyObject(int type) {
-    redisReply *r = calloc(1,sizeof(*r));
+	redisReply *r = calloc(1,sizeof(*r));
 
-    if (r == NULL)
-        return NULL;
+	if (r == NULL)
+		return NULL;
 
-    r->type = type;
-    return r;
+	r->type = type;
+	return r;
 }
 
 static int json_get_hash(struct redis_hash *out, struct call* c,
@@ -910,17 +910,17 @@ static void redis_destroy_list(struct redis_list *rl) {
 }
 
 static void json_destroy_hash(struct redis_hash *rh) {
-        g_hash_table_destroy(rh->ht);
+		g_hash_table_destroy(rh->ht);
 }
 
 static void json_destroy_list(struct redis_list *rl) {
-        unsigned int i;
+		unsigned int i;
 
-        for (i = 0; i < rl->len; i++) {
-                json_destroy_hash(&rl->rh[i]);
-        }
-        free(rl->rh);
-        free(rl->ptrs);
+		for (i = 0; i < rl->len; i++) {
+				json_destroy_hash(&rl->rh[i]);
+		}
+		free(rl->rh);
+		free(rl->ptrs);
 }
 
 static int redis_hash_get_str(str *out, const struct redis_hash *h, const char *k) {
@@ -1558,7 +1558,7 @@ static int json_link_tags(struct call *c, struct redis_list *tags, struct redis_
 		for (l = q.head; l; l = l->next) {
 			other_ml = l->data;
 			if (!other_ml)
-			    return -1;
+				return -1;
 			g_hash_table_insert(ml->other_tags, &other_ml->tag, other_ml);
 		}
 		g_queue_clear(&q);
@@ -1587,7 +1587,7 @@ static int redis_link_tags(struct redis *r, struct call *c, struct redis_list *t
 		for (l = q.head; l; l = l->next) {
 			other_ml = l->data;
 			if (!other_ml)
-			    return -1;
+				return -1;
 			g_hash_table_insert(ml->other_tags, &other_ml->tag, other_ml);
 		}
 		g_queue_clear(&q);
@@ -1712,7 +1712,7 @@ static int rbl_cb_intf_sfds(str *s, GQueue *q, struct redis_list *list, void *pt
 
 	sfd = redis_list_get_idx_ptr(list, atoi(s->s));
 	if (G_UNLIKELY(!sfd))
-	    return -1;
+		return -1;
 
 	g_queue_push_tail(&il->list, sfd);
 	return 0;

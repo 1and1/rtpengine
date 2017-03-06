@@ -29,7 +29,7 @@ struct port_pool {
 	volatile unsigned int		last_used;
 	volatile unsigned int		free_ports;
 
-	SQueue                  free_ports_queue;
+	SQueue				free_ports_queue;
 	unsigned int			min, max;
 };
 struct intf_address {
@@ -114,9 +114,9 @@ INLINE struct local_intf *get_interface_from_address(const struct logical_intf *
 */
 
 typedef struct port_alloc_user_data {
-    int  pos;
-    char *print_buf;
-    int print_buf_sz;
+	int  pos;
+	char *print_buf;
+	int print_buf_sz;
 } pa_data;
 
 void port_alloc_status(void *pa_status);

@@ -1,11 +1,9 @@
 #ifndef _SIMPLE_QUEUE_H_
 #define _SIMPLE_QUEUE_H_
 
-
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-
 
 typedef struct SQueue {
 	int *intArray;
@@ -25,6 +23,7 @@ int sq_size(SQueue *q);
 void sq_push_tail(SQueue *q, int data);
 int sq_pop_head(SQueue *q);
 int sq_clear(SQueue *q);
-void sq_rebuild_from_ba(SQueue *dst_q, volatile unsigned int *src_ba, unsigned int start_port, unsigned int stop_port);
+void sq_rebuild_from_ba(SQueue *dst_q, volatile unsigned int *src_ba,
+	unsigned int start_port, unsigned int stop_port);
 
 #endif
