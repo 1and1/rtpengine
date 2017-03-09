@@ -483,7 +483,8 @@ static void __interface_append(struct intf_config *ifa, sockfamily_t *fam) {
 		spec->port_pool.max = ifa->port_max;
 		spec->port_pool.free_ports = spec->port_pool.max - spec->port_pool.min + 1;
 		sq_alloc(&(spec->port_pool.free_ports_queue), spec->port_pool.free_ports);
-		sq_shuffle(&(spec->port_pool.free_ports_queue), spec->port_pool.min, spec->port_pool.max);
+		sq_init(&(spec->port_pool.free_ports_queue), spec->port_pool.min, spec->port_pool.max);
+		sq_shuffle(&(spec->port_pool.free_ports_queue));
 		g_hash_table_insert(__intf_spec_addr_type_hash, &spec->local_address, spec);
 	}
 

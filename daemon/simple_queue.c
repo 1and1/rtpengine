@@ -13,7 +13,7 @@ inline int sq_alloc(SQueue *q, int size) {
 	return 0;
 }
 
-inline int sq_shuffle(SQueue *q, int port_min, int port_max) {
+inline int sq_init(SQueue *q, int port_min, int port_max) {
 	int i;
 
 	if (!q)
@@ -22,14 +22,30 @@ inline int sq_shuffle(SQueue *q, int port_min, int port_max) {
 	if (port_max - port_min + 1 > q->fullSize)
 		return -1;
 
-	srand(time(0));
 	for (i = 0; i < port_max - port_min + 1; i++) {
-		q->intArray[i] = port_min + (rand() % (i + 1));
+		q->intArray[i] = port_min + i;
 	}
 
 	q->front = 0;
-	q->rear = q->fullSize - 1;
-	q->itemCount = q->fullSize;
+	q->rear = port_max - port_min;
+	q->itemCount = port_max - port_min + 1;
+}
+
+inline int sq_shuffle(SQueue *q) {
+	int i,pos, tmp;
+
+	if (!q)
+		return -1;
+
+	srand(time(0));
+
+	/* To shuffle an array a of n elements (indices 0..n-1) */
+	for (i = q->rear; i>=1; i--) {
+		pos = rand() % (i + 1);
+		tmp = q->intArray[pos];
+		q->intArray[pos] = q->intArray[i];
+		q->intArray[i] = tmp;
+	}
 }
 
 inline int sq_clear(SQueue *q) {
@@ -94,9 +110,8 @@ inline int sq_pop_head(SQueue *q) {
 
 }
 
-/* rebuild queue from bit array */
-/* shuffling algo is not yet implemented */
-/* src_ba: 1 means port is in use */
+/* rebuild queue from bit array
+ * src_ba: 1 means port is in use */
 //TBD check volatile
 void sq_rebuild_from_ba(SQueue *dst_q, volatile unsigned int *src_ba,
 		unsigned int start_port, unsigned int stop_port) {
@@ -110,6 +125,7 @@ void sq_rebuild_from_ba(SQueue *dst_q, volatile unsigned int *src_ba,
 		if (!bit_array_isset(src_ba, port)) {
 			sq_push_tail(dst_q, port);
 		}
-
 	}
+
+	sq_shuffle(dst_q);
 }

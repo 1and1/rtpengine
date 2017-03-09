@@ -14,7 +14,8 @@ typedef struct SQueue {
 } SQueue;
 
 int sq_alloc(SQueue *q, int size);
-int sq_shuffle(SQueue *q, int port_min, int port_max);
+int sq_init(SQueue *q, int port_min, int port_max);
+int sq_shuffle(SQueue *q);
 void sq_free(SQueue *q, int size);
 int sq_peek(SQueue *q);
 int sq_is_empty(SQueue *q);
