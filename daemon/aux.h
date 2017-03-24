@@ -19,6 +19,7 @@
 #include <math.h>
 #include "compat.h"
 #include <openssl/rand.h>
+#include "log.h"
 
 #if !(GLIB_CHECK_VERSION(2,30,0))
 #define g_atomic_int_and(atomic, val) \
@@ -287,7 +288,17 @@ INLINE int __cond_timedwait_tv(cond_t *c, mutex_t *m, const struct timeval *tv) 
 
 #define __debug_mutex_init(m, F, L) pthread_mutex_init(m, NULL)
 #define __debug_mutex_destroy(m, F, L) pthread_mutex_destroy(m)
-#define __debug_mutex_lock(m, F, L) pthread_mutex_lock(m)
+
+#define __debug_mutex_lock(m, F, L) do { \
+	struct timespec wait; \
+	wait.tv_sec=0; \
+	wait.tv_nsec=500000; \
+	if (pthread_mutex_timedlock(m,&wait)!=0) { \
+		ilog(LOG_ERR, "Timeout waiting for lock variable: " #m); \
+			pthread_mutex_lock(m); \
+	} } while (0)
+
+
 #define __debug_mutex_trylock(m, F, L) pthread_mutex_trylock(m)
 #define __debug_mutex_unlock(m, F, L) pthread_mutex_unlock(m)
 
