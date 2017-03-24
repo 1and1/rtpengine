@@ -304,9 +304,27 @@ INLINE int __cond_timedwait_tv(cond_t *c, mutex_t *m, const struct timeval *tv) 
 
 #define __debug_rwlock_init(l, F, L) pthread_rwlock_init(l, NULL)
 #define __debug_rwlock_destroy(l, F, L) pthread_rwlock_destroy(l)
-#define __debug_rwlock_lock_r(l, F, L) pthread_rwlock_rdlock(l)
+
+#define __debug_rwlock_lock_r(l, F, L) do { \
+		struct timespec wait; \
+		wait.tv_sec=0; \
+		wait.tv_nsec=500000; \
+		if (pthread_rwlock_timedrdlock(l,&wait)!=0) { \
+			ilog(LOG_ERR, "Timeout waiting for lock variable: " #l); \
+			pthread_rwlock_rdlock(l); \
+		} } while (0)
+
 #define __debug_rwlock_unlock_r(l, F, L) pthread_rwlock_unlock(l)
-#define __debug_rwlock_lock_w(l, F, L) pthread_rwlock_wrlock(l)
+
+#define __debug_rwlock_lock_w(l, F, L) do { \
+		struct timespec wait; \
+		wait.tv_sec=0; \
+		wait.tv_nsec=500000; \
+		if (pthread_rwlock_timedwrlock(l,&wait)!=0) { \
+			ilog(LOG_ERR, "Timeout waiting for lock variable: " #l); \
+			pthread_rwlock_wrlock(l); \
+		} } while (0)
+
 #define __debug_rwlock_unlock_w(l, F, L) pthread_rwlock_unlock(l)
 
 #define __debug_cond_init(c, F, L) pthread_cond_init(c, NULL)
