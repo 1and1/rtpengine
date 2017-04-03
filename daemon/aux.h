@@ -328,7 +328,16 @@ INLINE int __cond_timedwait_tv(cond_t *c, mutex_t *m, const struct timeval *tv) 
 #define __debug_rwlock_unlock_w(l, F, L) pthread_rwlock_unlock(l)
 
 #define __debug_cond_init(c, F, L) pthread_cond_init(c, NULL)
-#define __debug_cond_wait(c, m, F, L) pthread_cond_wait(c,m)
+
+#define __debug_cond_wait(c, m, F, L) do { \
+		struct timespec wait; \
+		wait.tv_sec=0; \
+		wait.tv_nsec=500000; \
+		if (pthread_cond_timedwait(c,m,&wait)!=0) { \
+			ilog(LOG_ERR, "Timeout waiting for condition variable: " #m); \
+			pthread_cond_wait(c,m); \
+		} } while (0)
+
 #define __debug_cond_timedwait(c, m, t, F, L) __cond_timedwait_tv(c,m,t)
 #define __debug_cond_signal(c, F, L) pthread_cond_signal(c)
 #define __debug_cond_broadcast(c, F, L) pthread_cond_broadcast(c)
