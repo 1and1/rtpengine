@@ -316,12 +316,15 @@ INLINE int __cond_timedwait_tv(cond_t *c, mutex_t *m, const struct timeval *tv) 
 
 #define __debug_rwlock_unlock_r(l, F, L) pthread_rwlock_unlock(l)
 
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
+
 #define __debug_rwlock_lock_w(l, F, L) do { \
 		struct timespec wait; \
 		wait.tv_sec=0; \
 		wait.tv_nsec=500000; \
 		if (pthread_rwlock_timedwrlock(l,&wait)!=0) { \
-			ilog(LOG_ERR, "Timeout waiting for lock variable: " #l); \
+			ilog(LOG_ERR, "Timeout waiting for lock variable " TOSTRING(__FILE__) TOSTRING(__LINE__) #l); \
 			pthread_rwlock_wrlock(l); \
 		} } while (0)
 
