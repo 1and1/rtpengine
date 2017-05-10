@@ -1432,6 +1432,7 @@ static int proc_list_show(struct seq_file *f, void *v) {
 	int i;
 
 	seq_printf(f, "local ");
+	seq_printf(f, "callid: %s\n", g->target.call_id);
 	seq_addr_print(f, &g->target.local);
 	seq_printf(f, "\n");
 	proc_list_addr_print(f, "src", &g->target.src_addr);
@@ -1916,7 +1917,7 @@ static void crypto_context_init(struct re_crypto_context *c, struct rtpengine_sr
 	c->hmac = &re_hmacs[s->hmac];
 }
 
-static int table_new_target(struct rtpengine_table *t, struct rtpengine_target_info *i, int update) {
+static int table_new_target(struct rtpengine_table *t, struct rtpengine_message *msg, int update) {
 	unsigned char hi, lo;
 	unsigned int rda_hash, rh_it;
 	struct rtpengine_target *g;
@@ -1925,6 +1926,8 @@ static int table_new_target(struct rtpengine_table *t, struct rtpengine_target_i
 	struct rtpengine_target *og = NULL;
 	int err, j;
 	unsigned long flags;
+	struct rtpengine_target_info *i = &msg->u.target;
+	memcpy(&i->call_id,&msg->u.call.call_id, strlen(msg->u.call.call_id));
 
 	/* validation */
 
@@ -2994,7 +2997,7 @@ static inline ssize_t proc_control_read_write(struct file *file, char __user *ub
 			break;
 
 		case REMG_ADD:
-			err = table_new_target(t, &msg->u.target, 0);
+			err = table_new_target(t, msg, 0);
 			break;
 
 		case REMG_DEL:
@@ -3002,7 +3005,7 @@ static inline ssize_t proc_control_read_write(struct file *file, char __user *ub
 			break;
 
 		case REMG_UPDATE:
-			err = table_new_target(t, &msg->u.target, 1);
+			err = table_new_target(t, msg, 1);
 			break;
 
 		case REMG_ADD_CALL:

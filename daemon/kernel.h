@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <glib.h>
 #include <netinet/in.h>
+#include "str.h"
 
 
 
@@ -32,7 +33,7 @@ extern struct kernel_interface kernel;
 
 int kernel_setup_table(unsigned int);
 
-int kernel_add_stream(struct rtpengine_target_info *, int);
+int kernel_add_stream(struct rtpengine_target_info *mti, int update, str* callid);
 int kernel_del_stream(const struct re_address *);
 GList *kernel_list();
 

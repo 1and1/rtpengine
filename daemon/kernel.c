@@ -99,7 +99,7 @@ int kernel_setup_table(unsigned int id) {
 }
 
 
-int kernel_add_stream(struct rtpengine_target_info *mti, int update) {
+int kernel_add_stream(struct rtpengine_target_info *mti, int update, str* callid) {
 	struct rtpengine_message msg;
 	int ret;
 
@@ -108,6 +108,9 @@ int kernel_add_stream(struct rtpengine_target_info *mti, int update) {
 
 	msg.cmd = update ? REMG_UPDATE : REMG_ADD;
 	msg.u.target = *mti;
+
+	memcpy(&msg.u.call.call_id,callid->s,callid->len);
+	memset(&msg.u.call.call_id,0,callid->len+1);
 
 	ret = write(kernel.fd, &msg, sizeof(msg));
 	if (ret > 0)

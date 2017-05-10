@@ -99,6 +99,7 @@ struct rtpengine_target_info {
 					rtp:1,
 					rtp_only:1,
 					do_intercept:1;
+	char				call_id[256];
 };
 
 struct rtpengine_call_info {
