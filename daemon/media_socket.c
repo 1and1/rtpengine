@@ -62,6 +62,7 @@ static int call_avpf2avp_rtcp(str *s, struct packet_stream *);
 static int call_savpf2avp_rtcp(str *s, struct packet_stream *);
 //static int call_savpf2savp_rtcp(str *s, struct packet_stream *);
 
+static void __interfaces_rebuild_iterator(gpointer key, gpointer value, gpointer user_data);
 
 
 
@@ -481,6 +482,9 @@ static void __interface_append(struct intf_config *ifa, sockfamily_t *fam) {
 		spec->port_pool.min = ifa->port_min;
 		spec->port_pool.max = ifa->port_max;
 		spec->port_pool.free_ports = spec->port_pool.max - spec->port_pool.min + 1;
+		sq_alloc(&(spec->port_pool.free_ports_queue), spec->port_pool.free_ports);
+		sq_init(&(spec->port_pool.free_ports_queue), spec->port_pool.min, spec->port_pool.max);
+		sq_shuffle(&(spec->port_pool.free_ports_queue));
 		g_hash_table_insert(__intf_spec_addr_type_hash, &spec->local_address, spec);
 	}
 
@@ -540,6 +544,11 @@ void interfaces_exclude_port(unsigned int port) {
 	}
 
 	g_list_free(vals);
+}
+
+void interfaces_rebuild_portqueue() {
+	ilog(LOG_ERR, "interfaces_rebuild_portqueue()");
+	g_hash_table_foreach(__intf_spec_addr_type_hash, (GHFunc)__interfaces_rebuild_iterator, NULL);
 }
 
 struct local_intf *get_interface_address(const struct logical_intf *lif, sockfamily_t *fam) {
@@ -614,6 +623,7 @@ static void release_port(socket_t *r, struct intf_spec *spec) {
 		__C_DBG("port %u is released", port);
 		bit_array_clear(spec->port_pool.ports_used, port);
 		g_atomic_int_inc(&spec->port_pool.free_ports);
+		sq_push_tail(&(spec->port_pool.free_ports_queue), port);
 	} else {
 		__C_DBG("port %u is NOT released", port);
 	}
@@ -623,80 +633,111 @@ static void free_port(socket_t *r, struct intf_spec *spec) {
 	g_slice_free1(sizeof(*r), r);
 }
 
-
-
-/* puts list of socket_t into "out" */
-int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wanted_start_port,
-		struct intf_spec *spec)
+int __get_specific_port(GQueue *out, unsigned int wanted_port, struct intf_spec *spec)
 {
-	int i, cycle = 0;
+	int i;
 	socket_t *sk;
 	int port;
 	struct port_pool *pp;
+	SQueue *portsQ;
+
+	port = wanted_port;
+	pp = &spec->port_pool;
+	portsQ = &pp->free_ports_queue;
+
+	if (sq_size(portsQ) < 1)
+		goto fail;
+
+	/* TODO what happens if i cannot bind the ports */
+	__C_DBG("__get_consecutive_ports() Attempting to open port=%d", wanted_port);
+
+
+	sk = g_slice_alloc0(sizeof(*sk));
+	// fd=0 is a valid file descriptor that may be closed
+	// accidentally by free_port if previously bounded
+	sk->fd = -1;
+
+	if (get_port(sk, port, spec)) {
+		free_port(sk, spec);
+		goto fail;
+	}
+
+	g_queue_push_tail(out, sk);
+	/* success */
+	g_atomic_int_set(&pp->last_used, port);
+	port_alloc_status(NULL);
+
+	__C_DBG("Opened ports %u.. on interface %s for media relay",
+		((socket_t *) out->head->data)->local.port, sockaddr_print_buf(&spec->local_address.addr));
+	return 0;
+
+fail:
+	ilog(LOG_ERR, "Failed to get specific %u port on interface %s for media relay",
+			wanted_port, sockaddr_print_buf(&spec->local_address.addr));
+	return -1;
+}
+
+/* puts list of socket_t into "out" */
+int __get_consecutive_ports(GQueue *out, unsigned int num_ports, struct intf_spec *spec)
+{
+	socket_t *sk;
+	struct port_pool *pp;
+	SQueue *portsQ;
+	int i, port, queue_size;
+	int processed_ports, ports_allocated;
 
 	if (num_ports == 0)
 		return 0;
 
 	pp = &spec->port_pool;
+	portsQ = &pp->free_ports_queue;
 
-	__C_DBG("wanted_start_port=%d", wanted_start_port);
+	if (sq_size(portsQ) < num_ports)
+		goto fail;
 
-	if (wanted_start_port > 0) {
-		port = wanted_start_port;
-		__C_DBG("port=%d", port);
-	} else {
-		port = g_atomic_int_get(&pp->last_used);
-		__C_DBG("before randomization port=%d", port);
-#if PORT_RANDOM_MIN && PORT_RANDOM_MAX
-		port += PORT_RANDOM_MIN + (ssl_random() % (PORT_RANDOM_MAX - PORT_RANDOM_MIN));
-#endif
-		__C_DBG("after  randomization port=%d", port);
-	}
+	/* Cycles through the "portsQ" to insert num_ports consecutive ports into "out" queue.
+	 *		When a port cannot be opened, release the ports in "out" and insert the ports back in the "portsQ".
+	 *		If by chance an even port can't be opened, also move the next odd port to the back of the "portsQ".
+	 * The algo continues until "ports_allocated" or each port in "portsQ" has been processed.
+	 * */
+	processed_ports = ports_allocated = 0;
+	queue_size = sq_size(portsQ);
+	while (!ports_allocated && (processed_ports < queue_size)) {
 
-	// debug msg if port is in the given interval
-	if (bit_array_isset(pp->ports_used, port)) {
-		__C_DBG("port %d is USED in port pool", port);
-	} else {
-		__C_DBG("port %d is NOOT USED in port pool", port);
-	}
-
-	while (1) {
-		__C_DBG("cycle=%d, port=%d", cycle, port);
-		if (!wanted_start_port) {
-			if (port < pp->min)
-				port = pp->min;
-			if ((port & 1))
-				port++;
-		}
-
-		for (i = 0; i < num_ports; i++) {
+		for (ports_allocated = 1, i = 0; i < num_ports; i++) {
+			port = sq_pop_head(portsQ);
+			processed_ports++;
+			__C_DBG("__get_consecutive_ports()removeData=%d", port);
 			sk = g_slice_alloc0(sizeof(*sk));
 			// fd=0 is a valid file descriptor that may be closed
 			// accidentally by free_port if previously bounded
 			sk->fd = -1;
 			g_queue_push_tail(out, sk);
 
-			if (!wanted_start_port && port > pp->max) {
-				port = 0;
-				cycle++;
-				goto release_restart;
+			if (get_port(sk, port, spec)) {
+				ports_allocated = 0;
+				while ((sk = g_queue_pop_head(out))) {
+				  free_port(sk, spec);
+				  sq_push_tail(portsQ, port);
+				}
+
+				if (sq_peek(portsQ) % 2 == 1) {
+					port = sq_pop_head(portsQ);
+					processed_ports++;
+					sq_push_tail(portsQ, port);
+				}
+				break;
 			}
-
-			if (get_port(sk, port++, spec))
-				goto release_restart;
 		}
-		break;
 
-release_restart:
-		while ((sk = g_queue_pop_head(out)))
-			free_port(sk, spec);
-
-		if (cycle >= 2 || wanted_start_port > 0)
-			goto fail;
 	}
+
+	if (!ports_allocated)
+		goto fail;
 
 	/* success */
 	g_atomic_int_set(&pp->last_used, port);
+	port_alloc_status(NULL);
 
 	__C_DBG("Opened ports %u.. on interface %s for media relay",
 		((socket_t *) out->head->data)->local.port, sockaddr_print_buf(&spec->local_address.addr));
@@ -707,6 +748,7 @@ fail:
 			num_ports, sockaddr_print_buf(&spec->local_address.addr));
 	return -1;
 }
+
 
 /* puts a list of "struct intf_list" into "out", containing socket_t list */
 int get_consecutive_ports(GQueue *out, unsigned int num_ports, const struct logical_intf *log) {
@@ -720,7 +762,7 @@ int get_consecutive_ports(GQueue *out, unsigned int num_ports, const struct logi
 		il = g_slice_alloc0(sizeof(*il));
 		il->local_intf = loc;
 		g_queue_push_tail(out, il);
-		if (G_LIKELY(!__get_consecutive_ports(&il->list, num_ports, 0, loc->spec))) {
+		if (G_LIKELY(!__get_consecutive_ports(&il->list, num_ports, loc->spec))) {
 			// success - found available ports on local interfaces, so far
 			continue;
 		}
@@ -882,7 +924,7 @@ void kernelize(struct packet_stream *stream) {
 	if (!stream->selected_sfd)
 		goto no_kernel;
 
-        ilog(LOG_INFO, "Kernelizing media stream: %s:%d", sockaddr_print_buf(&stream->endpoint.address), stream->endpoint.port);
+		ilog(LOG_INFO, "Kernelizing media stream: %s:%d", sockaddr_print_buf(&stream->endpoint.address), stream->endpoint.port);
 
 	sink = packet_stream_sink(stream);
 	if (!sink) {
@@ -1062,14 +1104,14 @@ static int stream_packet(struct stream_fd *sfd, str *s, const endpoint_t *fsin, 
  * Incoming packets:
  * - sfd->socket.local: the local IP/port on which the packet arrived
  * - sfd->stream->endpoint: adjusted/learned IP/port from where the packet
- *   was sent
+ *	 was sent
  * - sfd->stream->advertised_endpoint: the unadjusted IP/port from where the
- *   packet was sent. These are the values present in the SDP
+ *	 packet was sent. These are the values present in the SDP
  *
  * Outgoing packets:
  * - sfd->stream->rtp_sink->endpoint: the destination IP/port
  * - sfd->stream->selected_sfd->socket.local: the local source IP/port for the
- *   outgoing packet
+ *	 outgoing packet
  *
  * If the rtpengine runs behind a NAT and local addresses are configured with
  * different advertised endpoints, the SDP would not contain the address from
@@ -1079,11 +1121,11 @@ static int stream_packet(struct stream_fd *sfd, str *s, const endpoint_t *fsin, 
 /* TODO move the above comments to the data structure definitions, if the above
  * always holds true */
 	struct packet_stream *stream,
-			     *sink = NULL,
-			     *in_srtp, *out_srtp;
+				 *sink = NULL,
+				 *in_srtp, *out_srtp;
 	struct call_media *media;
 	int ret = 0, update = 0, stun_ret = 0, handler_ret = 0, muxed_rtcp = 0, rtcp = 0,
-	    unk = 0;
+		unk = 0;
 	int i;
 	struct call *call;
 	struct callmaster *cm;
@@ -1384,7 +1426,7 @@ forward:
 
 	if (ret == -1) {
 		ret = -errno;
-                ilog(LOG_DEBUG,"Error when sending message. Error: %s",strerror(errno));
+				ilog(LOG_DEBUG,"Error when sending message. Error: %s",strerror(errno));
 		atomic64_inc(&stream->stats.errors);
 		atomic64_inc(&cm->statsps.errors);
 		goto out;
@@ -1517,4 +1559,44 @@ struct stream_fd *stream_fd_new(socket_t *fd, struct call *call, const struct lo
 		ilog(LOG_ERR, "Failed to add stream_fd to poller");
 
 	return sfd;
+}
+
+static void __interfaces_rebuild_iterator(gpointer key, gpointer value, gpointer user_data) {
+	struct intf_spec *spec = (struct intf_spec *)value;
+	struct port_pool *pp;
+
+	if (key == NULL || value == NULL)
+		return;
+
+	pp = &spec->port_pool;
+
+	sq_rebuild_from_ba(&pp->free_ports_queue, pp->ports_used, pp->min, pp->max);
+}
+
+static void print_interf_qstatus(gpointer key, gpointer value, gpointer user_data) {
+	struct intf_address *intf_addr = (struct intf_address *)key;
+	struct intf_spec *spec = (struct intf_spec *)value;
+	SQueue *q;
+	pa_data *data = (pa_data *)user_data;
+	int len;
+
+	if (key == NULL || value == NULL)
+		return;
+
+	q = &(spec->port_pool.free_ports_queue);
+
+	if (user_data != NULL) {
+		len = snprintf(data->print_buf + data->pos, data->print_buf_sz - data->pos, "Status queue on interface %s: \n", sockaddr_print_buf(&spec->local_address.addr));
+		if (len > 0) data->pos += len;
+		len = snprintf(data->print_buf + data->pos, data->print_buf_sz - data->pos,"	  available %d, front %d, rear %d \n", q->itemCount, q->front, q->rear);
+		if (len > 0) data->pos += len;
+	}
+	else {
+		ilog(LOG_ERR, "Status queue on interface %s \n", sockaddr_print_buf(&spec->local_address.addr));
+		ilog(LOG_ERR, "		 available %d, front %d, rear %d \n\n", q->itemCount, q->front, q->rear);
+	}
+}
+
+void port_alloc_status(void *user_data) {
+	g_hash_table_foreach(__intf_spec_addr_type_hash, (GHFunc)print_interf_qstatus, user_data);
 }

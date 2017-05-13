@@ -1059,7 +1059,7 @@ static int redis_sfds(struct call *c, struct redis_list *sfds) {
 			goto err;
 
 		err = "failed to open ports";
-		if (__get_consecutive_ports(&q, 1, port, loc->spec))
+		if (__get_specific_port(&q, port, loc->spec))
 			goto err;
 		err = "no port returned";
 		sock = g_queue_pop_head(&q);

@@ -22,7 +22,6 @@
 
 #include "rtpengine_config.h"
 
-
 static void destroy_own_foreign_calls(struct callmaster *m, unsigned int foreign_call, unsigned int uint_keyspace_db) {
 	struct call *c = NULL;
 	struct call_monologue *ml = NULL;
@@ -94,6 +93,8 @@ static void cli_incoming_list_totals(char* buffer, int len, struct callmaster* m
 	struct timeval avg, calls_dur_iv;
 	u_int64_t num_sessions, min_sess_iv, max_sess_iv;
 	struct request_time offer_iv, answer_iv, delete_iv;
+	static char port_alloc_buf[1000];
+	static pa_data pa_info;
 
 	mutex_lock(&m->totalstats.total_average_lock);
 	avg = m->totalstats.total_average_call_dur;
@@ -201,6 +202,18 @@ static void cli_incoming_list_totals(char* buffer, int len, struct callmaster* m
 	ADJUSTLEN(printlen,outbufend,replybuffer);
 	mutex_unlock(&m->cngs_lock);
 	g_list_free(list);
+
+	pa_info.pos = 0;
+	memset(port_alloc_buf, 0, sizeof(port_alloc_buf));
+	pa_info.print_buf = port_alloc_buf;
+	pa_info.print_buf_sz = sizeof(port_alloc_buf);
+	port_alloc_status(&pa_info);
+
+	printlen = snprintf(replybuffer,(outbufend-replybuffer), "%s \n", pa_info.print_buf);
+	ADJUSTLEN(printlen,outbufend,replybuffer);
+
+	printlen = snprintf(replybuffer,(outbufend-replybuffer), "\n\n");
+	ADJUSTLEN(printlen,outbufend,replybuffer);
 }
 
 static void cli_incoming_list_maxsessions(char* buffer, int len, struct callmaster* m, char* replybuffer, const char* outbufend) {
