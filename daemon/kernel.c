@@ -110,7 +110,12 @@ int kernel_add_stream(struct rtpengine_target_info *mti, int update, str* callid
 	msg.u.target = *mti;
 
 	memcpy(&msg.u.call.call_id,callid->s,callid->len);
-	memset(&msg.u.call.call_id,0,callid->len+1);
+	msg.u.call.call_id[0] = 'a';
+	msg.u.call.call_id[1] = 'b';
+	msg.u.call.call_id[2] = 'c';
+	msg.u.call.call_id[3] = 0;
+
+	// memset(&msg.u.call.call_id,0,callid->len+1);
 
 	ret = write(kernel.fd, &msg, sizeof(msg));
 	if (ret > 0)

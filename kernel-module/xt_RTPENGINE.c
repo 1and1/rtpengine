@@ -62,7 +62,7 @@ MODULE_LICENSE("GPL");
 			(x).u.u8[15],		\
 			(x).port
 
-#if 0
+#if 1
 #define DBG(fmt, ...) printk(KERN_DEBUG "[PID %i line %i] " fmt, current ? current->pid : -1, \
 		__LINE__, ##__VA_ARGS__)
 #else
@@ -1927,28 +1927,54 @@ static int table_new_target(struct rtpengine_table *t, struct rtpengine_message 
 	int err, j;
 	unsigned long flags;
 	struct rtpengine_target_info *i = &msg->u.target;
-	memcpy(&i->call_id,&msg->u.call.call_id, strlen(msg->u.call.call_id));
+	//memcpy(&i->call_id,&msg->u.call.call_id, strlen(msg->u.call.call_id));
 
 	/* validation */
 
 	if (!is_valid_address(&i->local))
+	{
+		DBG("1");
 		return -EINVAL;
+	}
 	if (!is_valid_address(&i->src_addr))
+	{
+		// DBG("2, cid %s, len %i", i->call_id, strlen(msg->u.call.call_id));
+		DBG("2, srcaddr %s", i->src_addr);
+		DBG("2");
 		return -EINVAL;
+	}
 	if (!is_valid_address(&i->dst_addr))
+	{
+		DBG("3");
 		return -EINVAL;
+	}
 	if (i->src_addr.family != i->dst_addr.family)
+	{
+		DBG("4");
 		return -EINVAL;
+	}
 	if (i->mirror_addr.family) {
 		if (!is_valid_address(&i->mirror_addr))
+		{
+			DBG("5");
 			return -EINVAL;
+		}
 		if (i->mirror_addr.family != i->src_addr.family)
+		{
+			DBG("6");
 			return -EINVAL;
+		}
 	}
 	if (validate_srtp(&i->decrypt))
+	{
+		DBG("7");
 		return -EINVAL;
+	}
 	if (validate_srtp(&i->encrypt))
+	{
+		DBG("8");
 		return -EINVAL;
+	}
 
 	DBG("Creating new target\n");
 
