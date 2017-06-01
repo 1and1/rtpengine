@@ -1927,7 +1927,7 @@ static int table_new_target(struct rtpengine_table *t, struct rtpengine_message 
 	int err, j;
 	unsigned long flags;
 	struct rtpengine_target_info *i = &msg->u.target;
-	//memcpy(&i->call_id,&msg->u.call.call_id, strlen(msg->u.call.call_id));
+	memcpy(&i->call_id,&msg->u.call.call_id, strlen(msg->u.call.call_id));
 
 	/* validation */
 
@@ -1938,8 +1938,8 @@ static int table_new_target(struct rtpengine_table *t, struct rtpengine_message 
 	}
 	if (!is_valid_address(&i->src_addr))
 	{
-		// DBG("2, cid %s, len %i", i->call_id, strlen(msg->u.call.call_id));
-		DBG("2, srcaddr %s", i->src_addr);
+		DBG("2, cid %s, len %i", i->call_id, strlen(msg->u.call.call_id));
+		//DBG("2, srcaddr %s", i->src_addr);
 		DBG("2");
 		return -EINVAL;
 	}
