@@ -7,7 +7,7 @@ inline int sq_alloc(SQueue *q, int size) {
 
 	q->intArray = (int*) malloc(size * sizeof(int));
 	q->front = 0;
-	q->rear = -1;
+	q->rear = size-1;
 	q->itemCount = 0;
 	q->fullSize = size;
 	return 0;
@@ -22,7 +22,7 @@ inline int sq_init(SQueue *q, int port_min, int port_max) {
 	if (port_max - port_min + 1 > q->fullSize)
 		return -1;
 
-	for (i = 0; i < port_max - port_min + 1; i++) {
+	for (i = 0; i <= port_max - port_min; i++) {
 		q->intArray[i] = port_min + i;
 	}
 
@@ -40,7 +40,7 @@ inline int sq_shuffle(SQueue *q) {
 	srand(time(0));
 
 	/* To shuffle an array a of n elements (indices 0..n-1) */
-	for (i = q->rear; i>=1; i--) {
+	for (i = q->rear; i >= 1; i--) {
 		pos = rand() % (i + 1);
 		tmp = q->intArray[pos];
 		q->intArray[pos] = q->intArray[i];
@@ -84,30 +84,20 @@ inline int sq_size(SQueue *q) {
 
 inline void sq_push_tail(SQueue *q, int data) {
 	if (!sq_is_full(q)) {
-
-		if (q->rear == q->fullSize - 1) {
-			q->rear = -1;
-		}
-
-		q->intArray[++q->rear] = data;
+		q->rear = (q->rear == q->fullSize-1) ? 0 : q->rear+1;
+		q->intArray[q->rear] = data;
 		q->itemCount++;
 	}
 }
 
 inline int sq_pop_head(SQueue *q) {
 	int data = -1;
-
 	if (!isEmpty(q)) {
-		data = q->intArray[q->front++];
-
-		if (q->front == q->fullSize) {
-			q->front = 0;
-		}
-
+		data = q->intArray[q->front];
+		q->front = (q->front == q->fullSize-1) ? 0 : q->front+1;
 		q->itemCount--;
 	}
 	return data;
-
 }
 
 /* rebuild queue from bit array

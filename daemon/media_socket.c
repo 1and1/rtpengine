@@ -624,6 +624,7 @@ static void release_port(socket_t *r, struct intf_spec *spec) {
 		bit_array_clear(spec->port_pool.ports_used, port);
 		g_atomic_int_inc(&spec->port_pool.free_ports);
 		sq_push_tail(&(spec->port_pool.free_ports_queue), port);
+		__C_DBG("front %u rear %u", spec->port_pool.free_ports_queue.front, spec->port_pool.free_ports_queue.rear);
 	} else {
 		__C_DBG("port %u is NOT released", port);
 	}
