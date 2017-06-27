@@ -640,7 +640,7 @@ int __get_specific_port(GQueue *out, unsigned int wanted_port, struct intf_spec 
 	socket_t *sk;
 	int port;
 	struct port_pool *pp;
-	SQueue *portsQ;
+	simple_queue_t *portsQ;
 
 	port = wanted_port;
 	pp = &spec->port_pool;
@@ -683,7 +683,7 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, struct intf_spe
 {
 	socket_t *sk;
 	struct port_pool *pp;
-	SQueue *portsQ;
+	simple_queue_t *portsQ;
 	int i, port, queue_size;
 	int processed_ports, ports_allocated;
 
@@ -1577,7 +1577,7 @@ static void __interfaces_rebuild_iterator(gpointer key, gpointer value, gpointer
 static void print_interf_qstatus(gpointer key, gpointer value, gpointer user_data) {
 	struct intf_address *intf_addr = (struct intf_address *)key;
 	struct intf_spec *spec = (struct intf_spec *)value;
-	SQueue *q;
+	simple_queue_t *q;
 	pa_data *data = (pa_data *)user_data;
 	int len;
 
@@ -1589,12 +1589,12 @@ static void print_interf_qstatus(gpointer key, gpointer value, gpointer user_dat
 	if (user_data != NULL) {
 		len = snprintf(data->print_buf + data->pos, data->print_buf_sz - data->pos, "Status queue on interface %s: \n", sockaddr_print_buf(&spec->local_address.addr));
 		if (len > 0) data->pos += len;
-		len = snprintf(data->print_buf + data->pos, data->print_buf_sz - data->pos,"	  available %d, front %d, rear %d \n", q->itemCount, q->front, q->rear);
+		len = snprintf(data->print_buf + data->pos, data->print_buf_sz - data->pos,"	  available %d, front %d, rear %d \n", q->item_count, q->front, q->rear);
 		if (len > 0) data->pos += len;
 	}
 	else {
 		ilog(LOG_ERR, "Status queue on interface %s \n", sockaddr_print_buf(&spec->local_address.addr));
-		ilog(LOG_ERR, "		 available %d, front %d, rear %d \n\n", q->itemCount, q->front, q->rear);
+		ilog(LOG_ERR, "		 available %d, front %d, rear %d \n\n", q->item_count, q->front, q->rear);
 	}
 }
 

@@ -29,7 +29,7 @@ struct port_pool {
 	volatile unsigned int		last_used;
 	volatile unsigned int		free_ports;
 
-	SQueue				free_ports_queue;
+	simple_queue_t				free_ports_queue;
 	unsigned int			min, max;
 };
 struct intf_address {
