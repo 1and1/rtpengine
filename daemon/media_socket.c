@@ -532,15 +532,26 @@ void interfaces_init(GQueue *interfaces) {
 	}
 }
 
-void interfaces_exclude_port(unsigned int port) {
+void interfaces_exclude_consec_ports(unsigned int port) {
 	GList *vals, *l;
 	struct intf_spec *spec;
+	unsigned int odd_port, even_port;
 
 	vals = g_hash_table_get_values(__intf_spec_addr_type_hash);
 
+	if (port%2 == 1){
+		odd_port = port;
+		even_port = odd_port-1;
+	}
+	else {
+		odd_port = port+1;
+		even_port = port;
+	}
+
 	for (l = vals; l; l = l->next) {
+		bit_array_set(spec->port_pool.ports_used, odd_port);
+		bit_array_set(spec->port_pool.ports_used, even_port);
 		spec = l->data;
-		bit_array_set(spec->port_pool.ports_used, port);
 	}
 
 	g_list_free(vals);
@@ -597,6 +608,7 @@ static int get_port(socket_t *r, unsigned int port, struct intf_spec *spec) {
 		__C_DBG("port %d in use", port);
 		return -1;
 	}
+
 	__C_DBG("port %d locked", port);
 
 	ret = get_port6(r, port, spec);
@@ -613,6 +625,7 @@ static int get_port(socket_t *r, unsigned int port, struct intf_spec *spec) {
 
 	return 0;
 }
+
 
 static void release_port(socket_t *r, struct intf_spec *spec) {
 	unsigned int port = r->local.port;
@@ -707,6 +720,7 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, struct intf_spe
 
 		for (ports_allocated = 1, i = 0; i < num_ports; i++) {
 			port = sq_pop_head(portsQ);
+
 			processed_ports++;
 			__C_DBG("__get_consecutive_ports()removeData=%d", port);
 			sk = g_slice_alloc0(sizeof(*sk));
@@ -738,7 +752,7 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, struct intf_spe
 
 	/* success */
 	g_atomic_int_set(&pp->last_used, port);
-	port_alloc_status(NULL);
+	//port_alloc_status(NULL);
 
 	__C_DBG("Opened ports %u.. on interface %s for media relay",
 		((socket_t *) out->head->data)->local.port, sockaddr_print_buf(&spec->local_address.addr));

@@ -76,7 +76,7 @@ void interfaces_rebuild_portqueue();
 struct logical_intf *get_logical_interface(const str *name, sockfamily_t *fam, int num_ports);
 struct local_intf *get_interface_address(const struct logical_intf *lif, sockfamily_t *fam);
 struct local_intf *get_any_interface_address(const struct logical_intf *lif, sockfamily_t *fam);
-void interfaces_exclude_port(unsigned int port);
+void interfaces_exclude_consec_ports(unsigned int port);
 int is_local_endpoint(const struct intf_address *addr, unsigned int port);
 
 //int get_port(socket_t *r, unsigned int port, const struct local_intf *lif, const struct call *c);
