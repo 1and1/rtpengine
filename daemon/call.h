@@ -94,9 +94,9 @@ enum call_type {
 #endif
 
 #ifdef __DEBUG
-#define __C_DBG(x...) ilog(LOG_DEBUG, x)
+#define __C_DBG(x...) ilog(LOG_ERROR, x)
 #else
-#define __C_DBG(x...) ((void)0)
+#define __C_DBG(x...) ilog(LOG_ERROR, x)
 #endif
 
 #define IS_FOREIGN_CALL(c) (c->foreign_call)

@@ -631,7 +631,7 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 {
 	int i, cycle = 0;
 	socket_t *sk;
-	int port;
+	int port, ret;
 	struct port_pool *pp;
 
 	if (num_ports == 0)
@@ -670,11 +670,6 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 		}
 
 		for (i = 0; i < num_ports; i++) {
-			sk = g_slice_alloc0(sizeof(*sk));
-			// fd=0 is a valid file descriptor that may be closed
-			// accidentally by free_port if previously bounded
-			sk->fd = -1;
-			g_queue_push_tail(out, sk);
 
 			if (!wanted_start_port && port > pp->max) {
 				port = 0;
@@ -682,11 +677,37 @@ int __get_consecutive_ports(GQueue *out, unsigned int num_ports, unsigned int wa
 				goto release_restart;
 			}
 
-			if (get_port(sk, port++, spec))
-				goto release_restart;
+			__C_DBG("attempting to open port %u", port);
+
+			if (bit_array_set(pp->ports_used, port)) {
+				__C_DBG("port %d in use", port);				
+				goto release_restart_inc_port;
+			}
+			__C_DBG("port %d locked", port);
+
+			sk = g_slice_alloc0(sizeof(*sk));
+			// fd=0 is a valid file descriptor that may be closed
+			// accidentally by free_port if previously bounded
+			sk->fd = -1;
+			g_queue_push_tail(out, sk);
+
+			ret = get_port6(sk, port, spec);
+
+			if (ret) {
+				__C_DBG("couldn't open port %d", port);
+				bit_array_clear(pp->ports_used, port);
+				goto release_restart_inc_port;
+			}
+
+			g_atomic_int_dec_and_test(&pp->free_ports);
+			__C_DBG("%d free ports remaining on interface %s", pp->free_ports,
+					sockaddr_print_buf(&spec->local_address.addr));
+			port++;
 		}
 		break;
 
+release_restart_inc_port:
+		port++;
 release_restart:
 		while ((sk = g_queue_pop_head(out)))
 			free_port(sk, spec);
