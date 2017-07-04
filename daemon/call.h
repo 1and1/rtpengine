@@ -97,8 +97,7 @@ enum call_type {
 
 #define __DEBUG 1
 #ifdef __DEBUG
-//#define __C_DBG(x...) ilog(LOG_DEBUG, x)
-#define __C_DBG(x...) ilog(LOG_ERR, x)
+#define __C_DBG(x...) ilog(LOG_DEBUG, x)
 #else
 #define __C_DBG(x...) ((void)0)
 #endif

@@ -662,9 +662,7 @@ int __get_specific_port(GQueue *out, unsigned int wanted_port, struct intf_spec 
 	if (sq_size(portsQ) < 1)
 		goto fail;
 
-	/* TODO what happens if i cannot bind the ports */
 	__C_DBG("__get_consecutive_ports() Attempting to open port=%d", wanted_port);
-
 
 	sk = g_slice_alloc0(sizeof(*sk));
 	// fd=0 is a valid file descriptor that may be closed
@@ -679,7 +677,7 @@ int __get_specific_port(GQueue *out, unsigned int wanted_port, struct intf_spec 
 	g_queue_push_tail(out, sk);
 	/* success */
 	g_atomic_int_set(&pp->last_used, port);
-	port_alloc_status(NULL);
+	//port_alloc_status(NULL);
 
 	__C_DBG("Opened ports %u.. on interface %s for media relay",
 		((socket_t *) out->head->data)->local.port, sockaddr_print_buf(&spec->local_address.addr));
