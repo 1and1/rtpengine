@@ -1397,7 +1397,7 @@ static void json_restore_call(struct redis *r, struct callmaster *m, const str *
 	struct redis_hash call;
 	struct redis_list tags, sfds, streams, medias, maps;
 	struct call *c = NULL;
-	str s, id;
+	str s, id, meta;
 
 	const char *err = 0;
 	int i;
@@ -1501,10 +1501,8 @@ static void json_restore_call(struct redis *r, struct callmaster *m, const str *
 
 	// presence of this key determines whether we were recording at all
 	if (!redis_hash_get_str(&s, &call, "recording_meta_prefix")) {
-		recording_start(c, s.s);
-
-		if (!redis_hash_get_str(&s, &call, "recording_metadata"))
-			call_str_cpy(c, &c->recording->metadata, &s);
+		redis_hash_get_str(&meta, &call, "recording_metadata");
+		recording_start(c, s.s,&meta);
 	}
 
 	err = NULL;
