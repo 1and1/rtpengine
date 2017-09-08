@@ -92,8 +92,7 @@ static void avlog_ilog(void *ptr, int loglevel, const char *fmt, va_list ap) {
 
 static void setup(void) {
 	log_init("rtpengine-recording");
-	if (!output_disable)
-	{
+	if (!output_disable) {
 		av_register_all();
 		avcodec_register_all();
 		avfilter_register_all();
@@ -189,18 +188,15 @@ static void options(int *argc, char ***argv) {
 	config_load(argc, argv, e, " - rtpengine recording daemon",
 			"/etc/rtpengine/rtpengine-recording.conf", "rtpengine-recording");
 
-	if (!strcmp(output_format, "none"))
-	{
-		output_disable=1;
+	if (!strcmp(output_format, "none")) {
+		output_disable = 1;
 		if (output_mixed || output_single)
 			die("Output is disabled, but output-mixed or output-single is set");
-		if (!forward_to)
-		{
+		if (!forward_to) {
 			//the daemon has no function
 			die("Both output and packet forwarding are disabled");
 		}
-	}
-	else if (!output_mixed && !output_single)
+	} else if (!output_mixed && !output_single)
 		output_mixed = output_single = 1;
 }
 

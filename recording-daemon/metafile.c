@@ -25,8 +25,7 @@ static void meta_free(void *ptr) {
 	metafile_t *mf = ptr;
 
 	dbg("freeing metafile info for %s", mf->name);
-	if (!output_disable)
-	{
+	if (!output_disable) {
 		output_close(mf->mix_out);
 		mix_destroy(mf->mix);
 	}
@@ -53,9 +52,9 @@ static void meta_destroy(metafile_t *mf) {
 		pthread_mutex_unlock(&stream->lock);
 	}
 	//close forward socket
-	if (mf->forward_fd >= 0)
-	{
-		dbg("For call [%s] sent %d packets",mf->call_id,(int)mf->forward_total);
+	if (mf->forward_fd >= 0) {
+		dbg("For call [%s] sent %d packets", mf->call_id,
+				(int )mf->forward_total);
 		close(mf->forward_fd);
 		mf->forward_fd = -1;
 	}
@@ -66,8 +65,7 @@ static void meta_destroy(metafile_t *mf) {
 // mf is locked
 static void meta_stream_interface(metafile_t *mf, unsigned long snum, char *content) {
 	db_do_call(mf);
-	if (!output_disable)
-	{
+	if (!output_disable) {
 		pthread_mutex_lock(&mf->mix_lock);
 		if (!mf->mix && output_mixed) {
 			char buf[256];
@@ -99,10 +97,10 @@ static void meta_rtp_payload_type(metafile_t *mf, unsigned long mnum, unsigned i
 		ilog(LOG_ERR, "Payload type number %u is invalid", payload_num);
 		return;
 	}
-	if (!output_disable)
-	{
+	if (!output_disable) {
 		pthread_mutex_lock(&mf->payloads_lock);
-		mf->payload_types[payload_num] = g_string_chunk_insert(mf->gsc, payload_type);
+		mf->payload_types[payload_num] = g_string_chunk_insert(mf->gsc,
+				payload_type);
 		pthread_mutex_unlock(&mf->payloads_lock);
 	}
 }
@@ -153,11 +151,11 @@ static metafile_t *metafile_get(char *name) {
 	mf->forward_fd = -1;
 	mf->forward_total = 0;
 
-	if (!output_disable)
-	{
+	if (!output_disable) {
 		pthread_mutex_init(&mf->payloads_lock, NULL);
 		pthread_mutex_init(&mf->mix_lock, NULL);
-		mf->ssrc_hash = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, ssrc_free);
+		mf->ssrc_hash = g_hash_table_new_full(g_direct_hash, g_direct_equal,
+		NULL, ssrc_free);
 	}
 
 	g_hash_table_insert(metafiles, mf->name, mf);
