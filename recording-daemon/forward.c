@@ -3,7 +3,6 @@
 #include "forward.h"
 #include "main.h"
 #include "log.h"
-#include "fcntl.h"
 
 int start_forwarding_capture(metafile_t *mf, char *meta_info) {
 	int sock;
@@ -39,19 +38,23 @@ int start_forwarding_capture(metafile_t *mf, char *meta_info) {
 }
 
 int forward_packet(metafile_t *mf, unsigned char *buf, unsigned len) {
-	if (!forward_to)
-		return 0;
 
 	if (mf->forward_fd == -1) {
 		ilog(LOG_ERR,
 				"Trying to send packets, but connection not initialized!");
-		return -1;
+		goto err;
 	}
 
 	if (send(mf->forward_fd, buf, len, 0) == -1) {
 		ilog(LOG_ERR, "Error sending: %s",strerror(errno));
-		return -1;
+		goto err;
 	}
+
+	free(buf);
 	return 0;
+
+err:
+	free(buf);
+	return -1;
 }
 
