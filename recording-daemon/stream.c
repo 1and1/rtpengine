@@ -63,7 +63,7 @@ static void stream_handler(handler_t *handler) {
 
 	// got a packet
 	pthread_mutex_unlock(&stream->lock);
-	if (!output_disable)
+	if (output_enabled)
 		packet_process(stream, buf, ret);
 	if (forward_to){
 		if (forward_packet(stream->metafile,buf,ret) != -1)

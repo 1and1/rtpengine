@@ -8,7 +8,7 @@ extern const char *spool_dir;
 extern const char *output_dir;
 extern int output_mixed;
 extern int output_single;
-extern int output_disable;
+extern int output_enabled;
 extern const char *c_mysql_host,
       *c_mysql_user,
       *c_mysql_pass,

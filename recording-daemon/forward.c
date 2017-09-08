@@ -9,8 +9,6 @@ int start_forwarding_capture(metafile_t *mf, char *meta_info) {
 	int sock;
 	struct sockaddr_un addr;
 
-	if (!forward_to)
-		return 0;
 	if (mf->forward_fd >= 0) {
 		ilog(LOG_ERR, "Connection already established");
 		return -1;

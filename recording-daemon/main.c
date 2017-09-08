@@ -33,7 +33,7 @@ const char *output_dir = "/var/lib/rtpengine-recording";
 static const char *output_format = "wav";
 int output_mixed;
 int output_single;
-int output_disable = 0;
+int output_enabled = 1;
 const char *c_mysql_host,
       *c_mysql_user,
       *c_mysql_pass,
@@ -92,7 +92,7 @@ static void avlog_ilog(void *ptr, int loglevel, const char *fmt, va_list ap) {
 
 static void setup(void) {
 	log_init("rtpengine-recording");
-	if (!output_disable) {
+	if (!output_enabled) {
 		av_register_all();
 		avcodec_register_all();
 		avfilter_register_all();
@@ -189,7 +189,7 @@ static void options(int *argc, char ***argv) {
 			"/etc/rtpengine/rtpengine-recording.conf", "rtpengine-recording");
 
 	if (!strcmp(output_format, "none")) {
-		output_disable = 1;
+		output_enabled = 0;
 		if (output_mixed || output_single)
 			die("Output is disabled, but output-mixed or output-single is set");
 		if (!forward_to) {
