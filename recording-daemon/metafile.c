@@ -53,8 +53,9 @@ static void meta_destroy(metafile_t *mf) {
 	}
 	//close forward socket
 	if (mf->forward_fd >= 0) {
-		dbg("For call [%s] sent %d packets", mf->call_id,
-				(int )mf->forward_total);
+		dbg("call [%s] forwarded %d packets. %d failed sends.", mf->call_id,
+				(int )g_atomic_int_get(mf->forward_total),
+				(int )g_atomic_int_get(mf->forward_failed));
 		close(mf->forward_fd);
 		mf->forward_fd = -1;
 	}
@@ -111,7 +112,7 @@ static void meta_metadata(metafile_t *mf, char *content) {
 	mf->metadata = g_string_chunk_insert(mf->gsc, content);
 	db_do_call(mf);
 	if (forward_to)
-		start_forwarding_capture(mf,content);
+		start_forwarding_capture(mf, content);
 }
 
 
@@ -151,6 +152,7 @@ static metafile_t *metafile_get(char *name) {
 	mf->streams = g_ptr_array_new();
 	mf->forward_fd = -1;
 	mf->forward_total = 0;
+	mf->forward_failed = 0;
 
 	if (output_enabled) {
 		pthread_mutex_init(&mf->payloads_lock, NULL);

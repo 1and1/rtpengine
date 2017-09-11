@@ -66,7 +66,9 @@ static void stream_handler(handler_t *handler) {
 	if (output_enabled)
 		packet_process(stream, buf, ret);
 	if (forward_to){
-		if (forward_packet(stream->metafile,buf,ret) != -1)
+		if (forward_packet(stream->metafile,buf,ret))
+			g_atomic_int_inc(&stream->metafile->forward_failed);
+		else
 			g_atomic_int_inc(&stream->metafile->forward_total);
 	}
 

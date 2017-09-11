@@ -92,7 +92,7 @@ static void avlog_ilog(void *ptr, int loglevel, const char *fmt, va_list ap) {
 
 static void setup(void) {
 	log_init("rtpengine-recording");
-	if (!output_enabled) {
+	if (output_enabled) {
 		av_register_all();
 		avcodec_register_all();
 		avfilter_register_all();
