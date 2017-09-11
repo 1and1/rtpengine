@@ -214,7 +214,7 @@ static int pcap_create_spool_dir(const char *spoolpath) {
 }
 
 // lock must be held
-void recording_start(struct call *call, const char *prefix, str * metadata) {
+void recording_start(struct call *call, const char *prefix, str *metadata) {
 	if (call->recording) // already active
 		return;
 
@@ -272,7 +272,7 @@ void recording_stop(struct call *call) {
  *
  * Returns a boolean for whether or not the call is being recorded.
  */
-void detect_setup_recording(struct call *call, const str *recordcall, str * metadata) {
+void detect_setup_recording(struct call *call, const str *recordcall, str *metadata) {
 	if (!recordcall || !recordcall->s)
 		return;
 

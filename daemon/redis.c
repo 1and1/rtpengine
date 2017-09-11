@@ -1502,7 +1502,7 @@ static void json_restore_call(struct redis *r, struct callmaster *m, const str *
 	// presence of this key determines whether we were recording at all
 	if (!redis_hash_get_str(&s, &call, "recording_meta_prefix")) {
 		redis_hash_get_str(&meta, &call, "recording_metadata");
-		recording_start(c, s.s,&meta);
+		recording_start(c, s.s, &meta);
 	}
 
 	err = NULL;

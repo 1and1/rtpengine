@@ -756,7 +756,7 @@ static const char *call_offer_answer_ng(bencode_item_t *input, struct callmaster
 			       monologue, opmode);
 
 		//only add METADATA chunk if value is changed
-		if (flags.metadata.len && str_cmp_str(&flags.metadata,&recording->metadata)) {
+		if (flags.metadata.len && str_cmp_str(&flags.metadata, &recording->metadata)) {
 			call_str_cpy(call, &recording->metadata, &flags.metadata);
 			recording_meta_chunk(recording, "METADATA", &flags.metadata);
 		}
@@ -1117,7 +1117,7 @@ const char *call_start_recording_ng(bencode_item_t *input, struct callmaster *m,
 	if (!call)
 		return "Unknown call-id";
 
-	recording_start(call, NULL,&metadata);
+	recording_start(call, NULL, &metadata);
 
 	rwlock_unlock_w(&call->master_lock);
 	obj_put(call);
