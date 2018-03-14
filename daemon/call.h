@@ -401,6 +401,7 @@ struct call {
 	unsigned int		foreign_call; // created_via_redis_notify call
 
 	struct recording 	*recording;
+	int			drop_traffic;
 };
 
 

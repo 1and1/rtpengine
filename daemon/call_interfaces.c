@@ -610,6 +610,8 @@ static void call_ng_flags_flags(struct sdp_ng_flags *out, str *s, void *dummy) {
 		out->no_rtcp_attr = 1;
 	else if (!str_cmp(s, "loop-protect"))
 		out->loop_protect = 1;
+	else if (!str_cmp(s, "drop-traffic"))
+			out->drop_traffic = 1;
 	else {
 		// handle values aliases from other dictionaries
 		if (call_ng_flags_prefix(out, s, "SDES-", ng_sdes_option, NULL))
@@ -818,6 +820,8 @@ static const char *call_offer_answer_ng(bencode_item_t *input,
 	detect_setup_recording(call, &flags.record_call_str, &flags.metadata);
 	if (flags.record_call)
 		recording_start(call, NULL, &flags.metadata);
+
+	call->drop_traffic = flags.drop_traffic;
 
 	ret = monologue_offer_answer(monologue, &streams, &flags);
 	if (!ret)

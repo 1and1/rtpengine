@@ -1710,7 +1710,9 @@ static void stream_fd_readable(int fd, void *p, uintptr_t u) {
 	int update = 0;
 	struct call *ca;
 
-	if (sfd->socket.fd != fd)
+	ca = sfd->call ? : NULL;
+
+	if (sfd->socket.fd != fd || (ca && ca->drop_traffic))
 		goto out;
 
 	log_info_stream_fd(sfd);
@@ -1751,7 +1753,6 @@ static void stream_fd_readable(int fd, void *p, uintptr_t u) {
 	}
 
 out:
-	ca = sfd->call ? : NULL;
 
 	if (ca && update) {
 		redis_update_onekey(ca, rtpe_redis_write);
